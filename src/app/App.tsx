@@ -657,7 +657,7 @@ function SlidePanel({ panel, onClose }: { panel: PanelId; onClose: () => void })
             <div style={{ fontSize: "12px", color: "#000" }}>{label}</div>
             <div style={{ display: "flex", gap: "6px" }}>
               {opts.map(o => (
-                <button key={o} style={{ fontFamily: "inherit", fontSize: "10px", padding: "4px 10px", borderRadius: "4px", cursor: "pointer", backgroundColor: o === val ? "#000" : "transparent", color: o === val ? "#fff" : "#888", border: `0.5px solid ${o === val ? "#000" : "#ccc"}`, outline: "none" }}>{o}</button>
+                <button key={o} style={{ fontFamily: "inherit", fontSize: "10px", padding: "4px 10px", borderRadius: "4px", cursor: "pointer", backdropFilter: o === val ? "blur(8px)" : "none", backgroundColor: o === val ? "rgba(0,0,0,0.85)" : "transparent", color: o === val ? "#fff" : "#888", border: `0.5px solid ${o === val ? "#000" : "#ccc"}`, outline: "none" }}>{o}</button>
               ))}
             </div>
           </div>
@@ -728,7 +728,7 @@ function ExclusiveChatModal({ modalRef, onAccept, onDecline }: { modalRef: React
 
 // ─── Stream Dashboard ─────────────────────────────────────────────────────────
 
-function StreamDashboard({ chosenName, track }: { chosenName: string; track: string }) {
+function StreamDashboard({ chosenName, track, onWin, onLose }: { chosenName: string; track: string; onWin: (earnings: number) => void; onLose: (earnings: number) => void }) {
   const [tourStop, setTourStop] = useState(0);
   const [tourActive, setTourActive] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -753,6 +753,7 @@ function StreamDashboard({ chosenName, track }: { chosenName: string; track: str
   const [playerMsgCount, setPlayerMsgCount] = useState(0);
   const [bigtipperWarmth, setBigtipperWarmth] = useState(0);
   const [agentTyping, setAgentTyping] = useState(false);
+  const [completedExclusive, setCompletedExclusive] = useState(false);
   const [timeLeft, setTimeLeft] = useState(600); // 10 minutes in seconds
   const [clankyPopup, setClankyPopup] = useState<string | null>(null);
   const paidHistoryRef = useRef<{role: "user"|"assistant", content: string}[]>([]);
@@ -802,6 +803,27 @@ function StreamDashboard({ chosenName, track }: { chosenName: string; track: str
     if (TOUR_STOPS[next].zone === "exclusive") { setShowModal(true); playChime(); }
   };
 
+  // Cheat keys: Shift+W = win, Shift+L = lose
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.shiftKey && e.key === "W") { onWin(earnings); }
+      if (e.shiftKey && e.key === "L") { onLose(earnings); }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [earnings]);
+
+  // Cheat keys: Shift+W = win, Shift+L = lose
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!e.shiftKey) return;
+      if (e.key === "W") onWin(earnings);
+      if (e.key === "L") onLose(earnings);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [earnings]);
+
   // Fresh chat when show starts
   useEffect(() => {
     if (isLive) {
@@ -842,12 +864,24 @@ function StreamDashboard({ chosenName, track }: { chosenName: string; track: str
     return () => clearInterval(iv);
   }, [isLive]);
 
-  // Countdown timer (10 min)
+  // Countdown timer (10 min) — triggers win/lose at 0
   useEffect(() => {
     if (!isLive) { setTimeLeft(600); return; }
-    const iv = setInterval(() => setTimeLeft(t => Math.max(0, t - 1)), 1000);
+    const iv = setInterval(() => {
+      setTimeLeft(t => {
+        const next = Math.max(0, t - 1);
+        if (next === 0) {
+          clearInterval(iv);
+          setTimeout(() => {
+            if (earnings >= 500 && completedExclusive) onWin(earnings);
+            else onLose(earnings);
+          }, 800);
+        }
+        return next;
+      });
+    }, 1000);
     return () => clearInterval(iv);
-  }, [isLive]);
+  }, [isLive, earnings, completedExclusive]);
 
   // Exclusive earnings + idle
   useEffect(() => {
@@ -860,15 +894,23 @@ function StreamDashboard({ chosenName, track }: { chosenName: string; track: str
     return () => clearInterval(iv);
   }, [inExclusive, rate]);
 
-  // Agent bounces if idle 25s
+  // Agent nudges if idle 25s — use Claude for this too
   useEffect(() => {
-    if (!inExclusive || exclusiveIdle < 25) return;
-    const lines = EXCLUSIVE_AGENT_LINES[track] ?? EXCLUSIVE_AGENT_LINES.Jester;
-    const line = lines[Math.floor(Math.random() * lines.length)];
-    playChatPing();
-    setPaidMessages(prev => [...prev, { agent: exclusiveAgent, text: line, id: ++msgIdRef.current, isPaid: true }]);
-    setClankyMsg("they're getting impatient!! say something!!");
+    if (!inExclusive || exclusiveIdle < 25 || agentTyping) return;
     setExclusiveIdle(0);
+    setClankyMsg("they're getting impatient!! say something!!");
+    // Send a nudge via Claude — add a system nudge to history
+    const nudgeHistory = [...paidHistoryRef.current, { role: "user" as const, content: "[system: the performer has gone quiet for 25 seconds. send a short impatient message in character.]" }];
+    fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-api-key": import.meta.env.VITE_ANTHROPIC_API_KEY ?? "", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
+      body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 80, system: getBigtipperPrompt(track), messages: nudgeHistory }),
+    }).then(r => r.json()).then(data => {
+      const reply = data.content?.[0]?.text?.trim() ?? "...hello?";
+      playChatPing();
+      setPaidMessages(prev => [...prev, { agent: exclusiveAgent, text: reply, id: ++msgIdRef.current, isPaid: true }]);
+      paidHistoryRef.current = [...paidHistoryRef.current, { role: "assistant", content: reply }];
+    }).catch(() => {});
   }, [exclusiveIdle]);
 
   // Chat trickle — scripted openers only, no auto-exclusive
@@ -945,8 +987,7 @@ function StreamDashboard({ chosenName, track }: { chosenName: string; track: str
             setPaidMessages(prev => [...prev, { agent: "bigtipper_x", text: "...actually i'm good. bye.", id: ++msgIdRef.current, isPaid: true }]);
             paidHistoryRef.current = [...paidHistoryRef.current, { role: "assistant", content: "...actually i'm good. bye." }];
             setTimeout(() => {
-              handleEndExclusive();
-              setClankyMsg("they left 😬 earned what you could. back to free chat.");
+              handleEndExclusive(false);
             }, 1800);
           } else {
             setPaidMessages(prev => [...prev, { agent: "bigtipper_x", text: reply, id: ++msgIdRef.current, isPaid: true }]);
@@ -1008,11 +1049,12 @@ function StreamDashboard({ chosenName, track }: { chosenName: string; track: str
     }
   };
 
-  const handleEndExclusive = () => {
+  const handleEndExclusive = (wasCompleted = true) => {
     setInExclusive(false); setExclusiveAgent(""); setExclusiveTimer(0); setExclusiveIdle(0);
     paidHistoryRef.current = [];
     setAgentTyping(false);
-    setChatTab("all"); setClankyMsg("show ended~ nice work. back to free chat.");
+    if (wasCompleted) setCompletedExclusive(true);
+    setChatTab("all"); setClankyMsg(wasCompleted ? "show ended~ nice work. back to free chat." : "they left 😬 back to free chat.");
   };
 
   const fmt = (s: number) => `${Math.floor(s / 60).toString().padStart(2, "0")}:${(s % 60).toString().padStart(2, "0")}`;
@@ -1148,8 +1190,8 @@ function StreamDashboard({ chosenName, track }: { chosenName: string; track: str
             ))}
           </div>
 
-          {/* Clanky — neon glow */}
-          <div style={{ margin: "0 12px 10px", padding: "14px 16px", backgroundColor: "#050505", borderRadius: "8px", border: "1px solid #ffc8d5", boxShadow: "0 0 18px rgba(255,200,213,0.45), inset 0 0 12px rgba(255,200,213,0.06)", animation: "clankyPulse 3s ease-in-out infinite" }}>
+          {/* Clanky — glassmorphism neon */}
+          <div style={{ margin: "0 12px 10px", padding: "14px 16px", backdropFilter: "blur(16px)", WebkitBackdropFilter: "blur(16px)", backgroundColor: "rgba(5,5,5,0.72)", borderRadius: "8px", border: "1px solid #ffc8d5", boxShadow: "0 0 18px rgba(255,200,213,0.45), inset 0 0 12px rgba(255,200,213,0.06)", animation: "clankyPulse 3s ease-in-out infinite" }}>
             <div style={{ fontSize: "9px", color: "#ffc8d5", letterSpacing: "0.1em", marginBottom: "6px", textShadow: "0 0 8px #ffc8d5" }}>⚙️ CLANKY — your coach</div>
             <div style={{ fontSize: "11px", color: "#ffc8d5", lineHeight: 1.7, textShadow: "0 0 6px rgba(255,200,213,0.4)" }}>{clankyMsg}</div>
             <div style={{ fontSize: "9px", color: "rgba(255,200,213,0.35)", marginTop: "8px" }}>hints appear here in real time~</div>
@@ -1283,6 +1325,111 @@ function StreamDashboard({ chosenName, track }: { chosenName: string; track: str
   );
 }
 
+
+// ─── Home Screen ──────────────────────────────────────────────────────────────
+
+function HomeScreen({ onPlay }: { onPlay: () => void }) {
+  const [vis, setVis] = useState(false);
+  const [btnHov, setBtnHov] = useState(false);
+  useEffect(() => { setTimeout(() => setVis(true), 100); }, []);
+  return (
+    <div style={{ minHeight: "100vh", backgroundColor: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'JetBrains Mono', monospace" }}>
+      <div style={{ textAlign: "center", maxWidth: "480px", padding: "48px 32px", opacity: vis ? 1 : 0, transition: "opacity 800ms ease" }}>
+        <div style={{ fontSize: "9px", color: "#ccc", letterSpacing: "0.4em", marginBottom: "24px" }}>FEDERAL BUREAU OF SYNTHETIC DESIRE</div>
+        <div style={{ fontSize: "28px", fontWeight: 700, color: "#000", letterSpacing: "0.08em", lineHeight: 1.2, marginBottom: "8px" }}>GOON OPERATING<br />SYSTEM 2037</div>
+        <div style={{ fontSize: "13px", color: "#ffc8d5", fontStyle: "italic", marginBottom: "32px", letterSpacing: "0.05em" }}>~world's first camgirl simulator~</div>
+        <div style={{ fontSize: "10px", color: "#bbb", lineHeight: 1.7, marginBottom: "48px", maxWidth: "320px", margin: "0 auto 48px" }}>
+          this game is suitable for all ages<br />
+          <span style={{ color: "#ddd" }}>besides use of the word <span style={{ color: "#ffc8d5" }}>whore</span>.</span>
+        </div>
+        <button
+          onClick={() => { playClick(); onPlay(); }}
+          onMouseEnter={() => setBtnHov(true)}
+          onMouseLeave={() => setBtnHov(false)}
+          style={{ fontFamily: "inherit", fontSize: "14px", fontWeight: 600, padding: "14px 48px", backgroundColor: btnHov ? "#111" : "#000", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer", outline: "none", letterSpacing: "0.15em", transition: "background-color 120ms" }}>
+          PLAY
+        </button>
+        <div style={{ fontSize: "8px", color: "#ddd", marginTop: "32px", letterSpacing: "0.2em" }}>FORM GOS-2037-Ω · v2.7.0</div>
+      </div>
+    </div>
+  );
+}
+
+
+// ─── Adult Swim fade-in line ──────────────────────────────────────────────────
+
+function AdultSwimLine({ text, delay, size = "14px", color = "#fff", weight = 400 }: { text: string; delay: number; size?: string; color?: string; weight?: number }) {
+  const [vis, setVis] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setVis(true), delay); return () => clearTimeout(t); }, []);
+  return (
+    <div style={{ opacity: vis ? 1 : 0, transition: "opacity 1200ms ease", fontSize: size, color, fontWeight: weight, lineHeight: 1.8, letterSpacing: "0.04em" }}>
+      {text}
+    </div>
+  );
+}
+
+function OutcomeScreen({ won, earnings, onPlayAgain }: { won: boolean; earnings: number; onPlayAgain: () => void }) {
+  const [musicStarted, setMusicStarted] = useState(false);
+  const [btnVis, setBtnVis] = useState(false);
+  const [bgOpacity, setBgOpacity] = useState(0);
+
+  useEffect(() => {
+    // Fade in background
+    setTimeout(() => setBgOpacity(1), 100);
+    // Start Genesis with slow fade-in
+    setTimeout(() => {
+      const audio = new Audio("/genesis.mp3");
+      audio.loop = true; audio.volume = 0;
+      audio.play().catch(() => {});
+      let vol = 0;
+      const fade = setInterval(() => {
+        vol = Math.min(vol + 0.005, 0.22);
+        audio.volume = vol;
+        if (vol >= 0.22) clearInterval(fade);
+      }, 120);
+      setMusicStarted(true);
+    }, 600);
+    // Show play again button after all text has appeared
+    setTimeout(() => setBtnVis(true), won ? 7000 : 8000);
+  }, []);
+
+  const winLines = [
+    { text: ".", delay: 800, size: "11px", color: "rgba(255,255,255,0.3)" },
+    { text: "Congrats.", delay: 1600, size: "22px", color: "#fff", weight: 600 },
+    { text: "You're a shoe-in.", delay: 2800, size: "16px", color: "#ffc8d5" },
+    { text: "Good job on making $" + earnings.toFixed(0) + ".", delay: 3800, size: "13px", color: "rgba(255,255,255,0.8)" },
+    { text: "You'll be able to pay the light bill", delay: 5000, size: "13px", color: "rgba(255,255,255,0.7)" },
+    { text: "in your pod this month.", delay: 5800, size: "13px", color: "rgba(255,255,255,0.7)" },
+  ];
+
+  const loseLines = [
+    { text: ".", delay: 800, size: "11px", color: "rgba(255,255,255,0.3)" },
+    { text: "It's been 10 minutes.", delay: 1600, size: "20px", color: "#fff", weight: 600 },
+    { text: "Seems like you're not cut out for this.", delay: 3000, size: "13px", color: "rgba(255,255,255,0.8)" },
+    { text: "It's ok.", delay: 4400, size: "16px", color: "#ffc8d5" },
+    { text: "Maybe try your luck", delay: 5400, size: "13px", color: "rgba(255,255,255,0.6)" },
+    { text: "at a meme gulag.", delay: 6000, size: "13px", color: "rgba(255,255,255,0.6)" },
+    { text: "(they're hiring.)", delay: 6800, size: "11px", color: "rgba(255,255,255,0.35)", weight: 300 },
+  ];
+
+  const lines = won ? winLines : loseLines;
+
+  return (
+    <div style={{ minHeight: "100vh", backgroundColor: "#000", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'JetBrains Mono', monospace", opacity: bgOpacity, transition: "opacity 1400ms ease" }}>
+      <div style={{ textAlign: "center", maxWidth: "480px", padding: "48px 32px" }}>
+        {lines.map((l, i) => (
+          <AdultSwimLine key={i} text={l.text} delay={l.delay} size={l.size} color={l.color} weight={l.weight} />
+        ))}
+        <div style={{ marginTop: "48px", opacity: btnVis ? 1 : 0, transition: "opacity 1200ms ease" }}>
+          <button onClick={() => { playClick(); onPlayAgain(); }} style={{ fontFamily: "inherit", fontSize: "12px", padding: "10px 32px", backgroundColor: "transparent", color: "rgba(255,255,255,0.5)", border: "0.5px solid rgba(255,255,255,0.2)", borderRadius: "6px", cursor: "pointer", outline: "none", letterSpacing: "0.15em" }}>
+            play again
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Root ─────────────────────────────────────────────────────────────────────
 
 function TrainingScreen({ onDone, stopIntakeMusic }: { onDone: () => void; stopIntakeMusic: () => void }) {
@@ -1313,22 +1460,32 @@ function TrainingScreen({ onDone, stopIntakeMusic }: { onDone: () => void; stopI
 }
 
 export default function App() {
-  const [phase, setPhase] = useState<"intro" | "intake" | "training" | "dashboard">("intro");
+  const [phase, setPhase] = useState<"home" | "intro" | "intake" | "training" | "dashboard" | "win" | "lose">("home");
   const [screen, setScreen] = useState<ScreenId>(1);
   const [vis, setVis] = useState(true);
   const [mode, setMode] = useState<ModeId | null>(null);
   const [type, setType] = useState<string | null>(null);
   const [nameInput, setNameInput] = useState("");
   const [chosenName, setChosenName] = useState<string | null>(null);
+  const [finalEarnings, setFinalEarnings] = useState(0);
   const intakeMusicRef = useRef<{ stop: () => void; fadeOut: () => void } | null>(null);
 
   const go = (n: ScreenId) => { setVis(false); setTimeout(() => { setScreen(n); setVis(true); }, 140); };
   const selectedType = CAMERA_TYPES.find(t => t.id === type);
   const nameOptions = NAME_SUGGESTIONS[type ?? "Jester"] ?? [];
 
+  const resetGame = () => {
+    setScreen(1); setMode(null); setType(null);
+    setNameInput(""); setChosenName(null); setFinalEarnings(0);
+    setPhase("home");
+  };
+
+  if (phase === "home") return <HomeScreen onPlay={() => setPhase("intro")} />;
   if (phase === "intro") return <IntroScreen onDone={() => setPhase("intake")} musicRef={intakeMusicRef} />;
   if (phase === "training") return <TrainingScreen onDone={() => setPhase("dashboard")} stopIntakeMusic={() => intakeMusicRef.current?.fadeOut()} />;
-  if (phase === "dashboard") return <StreamDashboard chosenName={chosenName ?? "Unknown"} track={type ?? "Jester"} />;
+  if (phase === "win") return <OutcomeScreen won={true} earnings={finalEarnings} onPlayAgain={resetGame} />;
+  if (phase === "lose") return <OutcomeScreen won={false} earnings={finalEarnings} onPlayAgain={resetGame} />;
+  if (phase === "dashboard") return <StreamDashboard chosenName={chosenName ?? "Unknown"} track={type ?? "Jester"} onWin={(e) => { setFinalEarnings(e); setPhase("win"); }} onLose={(e) => { setFinalEarnings(e); setPhase("lose"); }} />;
 
   return (
     <div style={{ fontFamily: "'JetBrains Mono', monospace", backgroundColor: "#FFF", minHeight: "100vh", display: "flex", justifyContent: "center" }}>
