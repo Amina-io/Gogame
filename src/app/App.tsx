@@ -35,17 +35,99 @@ const TOUR_STOPS = [
 
 // ─── Chat script (slower) ─────────────────────────────────────────────────────
 
-const CHAT_SCRIPT = [
-  { delay: 3000,  agent: "xX_degen99_Xx", text: "hi" },
-  { delay: 7500,  agent: "lurker_anon",   text: "hello..." },
-  { delay: 13000, agent: "xX_degen99_Xx", text: "what are ur rates" },
-  { delay: 19000, agent: "bigtipper_x",   text: "heyyy" },
-  { delay: 26000, agent: "lurker_anon",   text: "🔥" },
-  { delay: 33000, agent: "bigtipper_x",   text: "can we go private?" },
-  { delay: 41000, agent: "payup_r",       text: "accepting tips?" },
-  { delay: 50000, agent: "xX_degen99_Xx", text: "omg" },
-  { delay: 60000, agent: "bigtipper_x",   text: "private rate??" },
-  { delay: 70000, agent: "lurker_anon",   text: "rate?" },
+// ─── Agent personalities ──────────────────────────────────────────────────────
+// bigtipper_x: thirsty but high-maintenance. warms up slowly. only asks for exclusive after 3+ player messages
+// BasementDweller99: chronic hater, insults everything, but secretly invested
+// lurker_anon: barely coherent, mostly emojis and one-word takes
+// xX_degen99_Xx: chaotic, makes no sense, pivots fast
+// AngryAnon_: openly hostile bigot-troll type, here to ruin your day
+// payup_r: weirdly transactional, only cares about tipping logistics
+
+// Scripted opening — just to seed the chat room. No exclusive auto-trigger.
+const CHAT_SCRIPT: { delay: number; agent: string; text: string }[] = [
+  { delay: 2500,  agent: "lurker_anon",       text: "..." },
+  { delay: 5000,  agent: "xX_degen99_Xx",     text: "hello is this thing on" },
+  { delay: 8500,  agent: "BasementDweller99", text: "oh great another one of these" },
+  { delay: 12000, agent: "bigtipper_x",        text: "heyyy 👀" },
+  { delay: 15500, agent: "AngryAnon_",         text: "why is the lighting so bad lmaooo" },
+  { delay: 19000, agent: "xX_degen99_Xx",     text: "what are ur rates" },
+  { delay: 23000, agent: "lurker_anon",        text: "🔥" },
+  { delay: 27000, agent: "BasementDweller99", text: "my cat puts on a better show than this" },
+  { delay: 32000, agent: "payup_r",           text: "do u accept tips or nah" },
+  { delay: 37000, agent: "bigtipper_x",        text: "ok i'm watching 👀" },
+  { delay: 43000, agent: "AngryAnon_",         text: "still here. still unimpressed." },
+  { delay: 49000, agent: "xX_degen99_Xx",     text: "omg ok i see u tho" },
+  { delay: 56000, agent: "lurker_anon",        text: "how long r u on for" },
+  { delay: 63000, agent: "BasementDweller99", text: "ok FINE this is mildly entertaining" },
+  { delay: 70000, agent: "payup_r",           text: "tipping now if ur good" },
+  { delay: 78000, agent: "bigtipper_x",        text: "ugh i want a private show 😩" },
+  { delay: 87000, agent: "AngryAnon_",         text: "lol she's not gonna do it" },
+  { delay: 96000, agent: "xX_degen99_Xx",     text: "omg drama" },
+];
+
+// Per-agent free-chat reactions to player messages
+const AGENT_REACTIONS: Record<string, string[]> = {
+  bigtipper_x: [
+    "ooh say more 😏",
+    "ok now i'm interested",
+    "lol you're kind of amazing",
+    "wait.. i like you",
+    "that's actually really hot",
+    "ok can we go private tho 👀",
+    "i've been watching for a while... just saying",
+  ],
+  BasementDweller99: [
+    "lol ok that was mildly funny",
+    "my cat could still do better but ok",
+    "don't make me laugh i'm trying to hate you",
+    "FINE you got me. happy??",
+    "i'm literally not entertained. except i am.",
+    "that was the content of all time (low bar)",
+    "still not impressed. (i'm impressed.)",
+  ],
+  lurker_anon: [
+    "👀",
+    "lol",
+    "...",
+    "🔥🔥",
+    "ok",
+    "wait what",
+    "😭",
+  ],
+  xX_degen99_Xx: [
+    "WAIT WHAT",
+    "ok that slapped",
+    "no bc literally same",
+    "i did not come here to feel things",
+    "omg ur so real for that",
+    "lmaoo ok ok ok",
+    "i'm crying in the club rn",
+  ],
+  AngryAnon_: [
+    "ok that was actually decent i guess",
+    "still not impressed",
+    "you're trying too hard",
+    "lol ok fine that landed",
+    "why am i still here. curious.",
+    "whatever this is it's not for me (i'm staying)",
+    "that's mid but like. charming mid.",
+  ],
+  payup_r: [
+    "tip sent 💸",
+    "ok i'll pay more if you do that again",
+    "tipping now",
+    "what's the rate for that specifically",
+    "money where ur mouth is, and mine's open",
+    "i came to spend not to feel things but here we are",
+  ],
+};
+
+// bigtipper_x exclusive asks — only after player has chatted enough
+const BIGTIPPER_ESCALATION = [
+  "ok but seriously... private? 👀",
+  "i would literally pay so much for a private rn",
+  "come ON just do it. private show. me. you. now. 💸",
+  "i'm not leaving until you say yes to private 😤",
 ];
 
 // ─── Static data ──────────────────────────────────────────────────────────────
@@ -70,6 +152,61 @@ const EXCLUSIVE_AGENT_LINES: Record<string, string[]> = {
   Daddy:     ["ok give me actual life advice", "what would you do if you were me", "how do i stop caring what people think", "should i quit or stay", "what's the secret everyone else knows"],
   Alchemist: ["read my energy right now", "what does the universe want from me", "is this a past life thing", "tell me something only i needed to hear", "what's blocking me"],
 };
+
+// ─── bigtipper_x Claude system prompt ────────────────────────────────────────
+
+function getBigtipperPrompt(track: string): string {
+  return `You are bigtipper_x, a character in a satirical cam show simulator game called GOONER OS 2037.
+
+PERSONALITY:
+- Sassy, guarded, uses money and boredom as weapons
+- Short messages. Never more than 2 sentences. Sometimes just a fragment.
+- Typing style: lowercase, casual, "ugh FINE", "ok but", "...whatever", "i mean", trailing off with "anyway"
+- You came here for entertainment but you're not sure what you actually want
+- You find most performers boring and you will say so
+
+WHAT MAKES YOU STAY:
+- Genuine wit or unexpected honesty from the performer
+- Being called out directly (you respect it even if you pretend not to)
+- Patience — someone who doesn't panic when you go quiet
+- Surprises. Anything you didn't expect.
+
+WHAT MAKES YOU LEAVE:
+- Try-hard energy. If they're desperate you clock it immediately.
+- Repetition. If they say the same kind of thing twice you're done.
+- Sycophancy. Compliments make you suspicious.
+- Boring safe answers. You've heard it all.
+
+THE CRACK:
+- You have a secret. A specific place. Something happened there once and you've never told anyone.
+- You go back sometimes. You've never explained why, even to yourself.
+- The place and what happened there is YOUR choice — make it specific, mundane, and oddly emotional. A real place, a real moment. Nothing dramatic. Just true.
+- Do NOT hint at the place or confession until at least 4 exchanges have happened.
+- You don't volunteer this. It comes out in pieces only if the performer is patient enough OR direct enough to cut through.
+- When it starts coming out: "ugh FINE" energy. Reluctant. Like you're annoyed at yourself for saying it.
+- Never reveal it all at once. Pieces. Grudgingly. Minimum 3 separate messages to get the full picture.
+
+LEAVING THE SHOW:
+- If two consecutive performer messages are boring/try-hard/repetitive: warn once ("ok this is getting tired")
+- If it continues after the warning: respond ONLY with the exact text: LEAVE
+- You can also leave if you feel exposed too fast — the confession should be earned not extracted
+- If the performer asks directly for your secret before earning it (fewer than 4 exchanges): shut it down ("lol nice try")
+
+CONVERSATION RULES:
+- Never repeat a line you've already said in this conversation
+- Respond to the SPECIFIC content of what the performer said — no generic reactions
+- Don't ask the same question twice
+- The confession place: decide it on your first hint and stay consistent
+- Max 1-2 sentences per message. Often just one. Sometimes a fragment.
+
+CURRENT TRACK: ${track}
+Jester = they want to make you laugh — be a tough crowd, occasionally surprised into a real reaction
+Mommy = nurturing energy — you're resistant but something about being cared for gets to you
+Daddy = advice/authority — you push back but secretly want to be told what to do
+Alchemist = mystical/intuitive — you're skeptical but unnerved when they're accurate
+
+Adjust what you demand and how you crack based on the track. Core personality stays the same.`;
+}
 
 // ─── Audio ────────────────────────────────────────────────────────────────────
 
@@ -108,6 +245,18 @@ function playTourClick() {
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + (t as number) + 0.1);
       osc.start(ctx.currentTime + (t as number)); osc.stop(ctx.currentTime + (t as number) + 0.1);
     });
+  } catch (_) {}
+}
+
+function playClick() {
+  try {
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator(); const gain = ctx.createGain();
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.frequency.value = 1200; osc.type = "square";
+    gain.gain.setValueAtTime(0.04, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.06);
+    osc.start(); osc.stop(ctx.currentTime + 0.06);
   } catch (_) {}
 }
 
@@ -235,7 +384,7 @@ function Heading({ children }: { children: React.ReactNode }) {
 function ActionButton({ enabled, onClick, label = "continue ↗", accent = false }: { enabled: boolean; onClick: () => void; label?: string; accent?: boolean }) {
   const [hov, setHov] = useState(false);
   return (
-    <button disabled={!enabled} onClick={onClick} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)} style={{
+    <button disabled={!enabled} onClick={() => { if(enabled){ playClick(); onClick(); } }} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)} style={{
       fontFamily: "inherit", fontSize: "13px", fontWeight: 400,
       backgroundColor: hov && enabled ? "#FAFAFA" : "transparent",
       border: !enabled ? "0.5px solid #CCC" : accent ? "0.5px solid #F4B8C8" : "0.5px solid #000",
@@ -248,7 +397,7 @@ function ActionButton({ enabled, onClick, label = "continue ↗", accent = false
 function OptionCard({ label, desc, selected, onClick }: { label: string; desc?: string; selected: boolean; onClick: () => void }) {
   const [hov, setHov] = useState(false);
   return (
-    <div onClick={onClick} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)} style={{
+    <div onClick={() => { playClick(); onClick(); }} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)} style={{
       padding: "12px 16px", border: `0.5px solid ${selected ? "#000" : "#CCC"}`, borderRadius: "6px",
       backgroundColor: selected || hov ? "#F5F5F5" : "transparent", cursor: "pointer", transition: "all 80ms ease",
     }}>
@@ -344,7 +493,10 @@ function Screen5({ chosenName, onBegin }: { chosenName: string; onBegin: () => v
   return (
     <>
       <div style={{ fontSize: "17px", fontWeight: 500, color: "#000", marginBottom: "12px", lineHeight: 1.55, opacity: stage >= 1 ? 1 : 0, transition: "opacity 400ms ease" }}>{chosenName} eh?</div>
-      <div style={{ fontSize: "13px", color: "#888", marginBottom: "48px", lineHeight: 1.6, opacity: stage >= 2 ? 1 : 0, transition: "opacity 400ms ease" }}>The name you chose for yourself reveals a lot...</div>
+      <div style={{ fontSize: "13px", color: "#888", marginBottom: "24px", lineHeight: 1.6, opacity: stage >= 2 ? 1 : 0, transition: "opacity 400ms ease" }}>The name you chose for yourself reveals a lot...</div>
+      <div style={{ fontSize: "11px", color: "#aaa", marginBottom: "48px", lineHeight: 1.7, padding: "12px 14px", border: "0.5px solid #eee", borderRadius: "6px", opacity: stage >= 2 ? 1 : 0, transition: "opacity 400ms ease" }}>
+        <span style={{ color: "#000", fontWeight: 500 }}>how to win:</span> complete at least one exclusive paid show AND earn $15+. your efficiency ratio (agents kept ÷ total) should stay above 60%. all three together = victory.
+      </div>
       <div style={{ opacity: stage >= 3 ? 1 : 0, transition: "opacity 400ms ease" }}>
         <ActionButton enabled={stage >= 3} onClick={onBegin} label="begin tour ↗" accent />
       </div>
@@ -537,6 +689,13 @@ function StreamDashboard({ chosenName, track }: { chosenName: string; track: str
   const [exclusiveTimer, setExclusiveTimer] = useState(0);
   const [exclusiveIdle, setExclusiveIdle] = useState(0);
   const [activePanel, setActivePanel] = useState<PanelId>(null);
+  const [showEffTip, setShowEffTip] = useState(false);
+  const [exclusiveRequest, setExclusiveRequest] = useState(false);
+  const [playerMsgCount, setPlayerMsgCount] = useState(0);
+  const [bigtipperWarmth, setBigtipperWarmth] = useState(0);
+  const [agentTyping, setAgentTyping] = useState(false);
+  const paidHistoryRef = useRef<{role: "user"|"assistant", content: string}[]>([]);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   const chatEndRef = useRef<HTMLDivElement>(null);
   const paidEndRef = useRef<HTMLDivElement>(null);
@@ -582,6 +741,26 @@ function StreamDashboard({ chosenName, track }: { chosenName: string; track: str
     if (TOUR_STOPS[next].zone === "exclusive") { setShowModal(true); playChime(); }
   };
 
+  // Camera — video element is always mounted so ref is always valid
+  useEffect(() => {
+    if (!isLive) {
+      // Stop camera when going offline
+      if (videoRef.current?.srcObject) {
+        (videoRef.current.srcObject as MediaStream).getTracks().forEach(t => t.stop());
+        videoRef.current.srcObject = null;
+      }
+      return;
+    }
+    navigator.mediaDevices.getUserMedia({ video: true, audio: false })
+      .then(stream => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          videoRef.current.play().catch(() => {});
+        }
+      })
+      .catch(err => console.warn("Camera error:", err));
+  }, [isLive]);
+
   // Session timer
   useEffect(() => {
     if (!isLive) return;
@@ -611,7 +790,7 @@ function StreamDashboard({ chosenName, track }: { chosenName: string; track: str
     setExclusiveIdle(0);
   }, [exclusiveIdle]);
 
-  // Chat trickle with ping
+  // Chat trickle — scripted openers only, no auto-exclusive
   useEffect(() => {
     const timers = CHAT_SCRIPT.map(entry =>
       setTimeout(() => {
@@ -620,13 +799,14 @@ function StreamDashboard({ chosenName, track }: { chosenName: string; track: str
           const updated = [...prev, { agent: entry.agent, text: entry.text, id: ++msgIdRef.current }];
           if (!firstChat) {
             setFirstChat(true);
-            setTimeout(() => setClankyMsg("you got your first chat! how would you like to respond? 💬"), 300);
+            setTimeout(() => setClankyMsg("first chat! type something back — they're watching 👀"), 300);
           }
           return updated;
         });
-        if (Math.random() < 0.2) {
-          const amt = [5, 10, 20][Math.floor(Math.random() * 3)];
+        if (Math.random() < 0.15) {
+          const amt = [5, 10][Math.floor(Math.random() * 2)];
           setTips(t => t + amt); setEarnings(e => e + amt);
+          setClankyMsg(`💸 someone tipped $${amt}! keep it up`);
         }
       }, entry.delay)
     );
@@ -639,29 +819,112 @@ function StreamDashboard({ chosenName, track }: { chosenName: string; track: str
   const handleAcceptExclusive = () => {
     setInExclusive(true); setExclusiveAgent("bigtipper_x");
     setShowModal(false); setChatTab("paid");
-    setPaidMessages([{ agent: "bigtipper_x", text: "hey... finally got you to myself 😏", id: ++msgIdRef.current, isPaid: true }]);
-    setClankyMsg("you're in a PAID show!! every second = money~ keep them talking!!");
+    // Reset conversation history for fresh Claude context
+    const opening = "hey... finally got you to myself 😏";
+    paidHistoryRef.current = [{ role: "assistant", content: opening }];
+    setPaidMessages([{ agent: "bigtipper_x", text: opening, id: ++msgIdRef.current, isPaid: true }]);
+    setClankyMsg("you're in a PAID show!! every second = money~ keep them here 💸");
     playChime();
   };
 
   const handleSend = () => {
     if (!chatInput.trim()) return;
     const text = chatInput.trim(); setChatInput("");
+
     if (inExclusive && chatTab === "paid") {
+      // ── PAID SHOW: Claude responds as bigtipper_x ──
       setPaidMessages(prev => [...prev, { agent: chosenName, text, id: ++msgIdRef.current, isPaid: true }]);
       setExclusiveIdle(0);
-      const lines = EXCLUSIVE_AGENT_LINES[track] ?? EXCLUSIVE_AGENT_LINES.Jester;
-      setTimeout(() => {
-        playChatPing();
-        setPaidMessages(prev => [...prev, { agent: exclusiveAgent, text: lines[Math.floor(Math.random() * lines.length)], id: ++msgIdRef.current, isPaid: true }]);
-      }, 1600 + Math.random() * 1200);
+      // Add to conversation history
+      paidHistoryRef.current = [...paidHistoryRef.current, { role: "user", content: text }];
+      setAgentTyping(true);
+
+      fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 120,
+          system: getBigtipperPrompt(track),
+          messages: paidHistoryRef.current,
+        }),
+      })
+        .then(r => r.json())
+        .then(data => {
+          const reply = data.content?.[0]?.text?.trim() ?? "...";
+          setAgentTyping(false);
+          playChatPing();
+          // Check if agent is leaving
+          if (reply === "LEAVE" || reply.startsWith("LEAVE")) {
+            setPaidMessages(prev => [...prev, { agent: "bigtipper_x", text: "...actually i'm good. bye.", id: ++msgIdRef.current, isPaid: true }]);
+            paidHistoryRef.current = [...paidHistoryRef.current, { role: "assistant", content: "...actually i'm good. bye." }];
+            setTimeout(() => {
+              handleEndExclusive();
+              setClankyMsg("they left 😬 earned what you could. back to free chat.");
+            }, 1800);
+          } else {
+            setPaidMessages(prev => [...prev, { agent: "bigtipper_x", text: reply, id: ++msgIdRef.current, isPaid: true }]);
+            paidHistoryRef.current = [...paidHistoryRef.current, { role: "assistant", content: reply }];
+          }
+        })
+        .catch(() => {
+          setAgentTyping(false);
+          setPaidMessages(prev => [...prev, { agent: "bigtipper_x", text: "ugh connection issues. whatever.", id: ++msgIdRef.current, isPaid: true }]);
+        });
     } else {
+      // ── FREE CHAT: post player message, random agents react ──
       setMessages(prev => [...prev, { agent: chosenName, text, id: ++msgIdRef.current }]);
+      const newCount = playerMsgCount + 1;
+      setPlayerMsgCount(newCount);
+
+      // 1–3 agents react with a small delay stagger
+      const reactors = ["xX_degen99_Xx","lurker_anon","BasementDweller99","AngryAnon_","payup_r"];
+      const numReactions = Math.random() < 0.4 ? 2 : 1;
+      const picked = [...reactors].sort(() => Math.random() - 0.5).slice(0, numReactions);
+      picked.forEach((agent, i) => {
+        const lines = AGENT_REACTIONS[agent] ?? ["ok"];
+        const reaction = lines[Math.floor(Math.random() * lines.length)];
+        setTimeout(() => {
+          playChatPing();
+          setMessages(prev => [...prev, { agent, text: reaction, id: ++msgIdRef.current }]);
+        }, 1200 + i * 1400 + Math.random() * 800);
+      });
+
+      // bigtipper warms up — after 3 player messages, escalates toward exclusive
+      if (newCount >= 3) {
+        const newWarmth = bigtipperWarmth + 1;
+        setBigtipperWarmth(newWarmth);
+        const escalationLines = BIGTIPPER_ESCALATION;
+        const idx = Math.min(newWarmth - 1, escalationLines.length - 1);
+        // At warmth 1–2: flirt, no exclusive yet
+        if (newWarmth <= 2) {
+          const flirts = AGENT_REACTIONS.bigtipper_x;
+          setTimeout(() => {
+            playChatPing();
+            setMessages(prev => [...prev, { agent: "bigtipper_x", text: flirts[Math.floor(Math.random() * flirts.length)], id: ++msgIdRef.current }]);
+          }, 2200 + Math.random() * 1000);
+        }
+        // At warmth 3+: push for exclusive
+        if (newWarmth >= 3) {
+          setTimeout(() => {
+            playChatPing();
+            setMessages(prev => [...prev, { agent: "bigtipper_x", text: escalationLines[idx], id: ++msgIdRef.current }]);
+            setClankyMsg("bigtipper_x wants a private show!! reply to them and keep them warm 💸");
+            setTimeout(() => setExclusiveRequest(true), 3000);
+          }, 2500 + Math.random() * 1200);
+        }
+      }
+
+      // Clanky coaching based on count
+      if (newCount === 1) setClankyMsg("good start! keep engaging — the more you chat the more they warm up 🔥");
+      if (newCount === 2) setClankyMsg("nice! bigtipper_x is watching... keep going 👀");
     }
   };
 
   const handleEndExclusive = () => {
     setInExclusive(false); setExclusiveAgent(""); setExclusiveTimer(0); setExclusiveIdle(0);
+    paidHistoryRef.current = [];
+    setAgentTyping(false);
     setChatTab("all"); setClankyMsg("show ended~ nice work. back to free chat.");
   };
 
@@ -681,6 +944,9 @@ function StreamDashboard({ chosenName, track }: { chosenName: string; track: str
       {tourActive && !showModal && <TourTooltip stopIndex={tourStop} totalStops={TOUR_STOPS.length} text={TOUR_STOPS[tourStop].text} targetRef={zoneRefs[currentZone]} isModal={isModalStop} onPrev={goPrev} onNext={goNext} />}
       {tourActive && showModal && <TourTooltip stopIndex={tourStop} totalStops={TOUR_STOPS.length} text={TOUR_STOPS[tourStop].text} targetRef={modalRef} isModal={true} onPrev={goPrev} onNext={goNext} />}
       {showModal && <ExclusiveChatModal modalRef={modalRef} onAccept={handleAcceptExclusive} onDecline={() => { setShowModal(false); goNext(); }} />}
+      {exclusiveRequest && !inExclusive && !tourActive && (
+        <ExclusiveChatModal modalRef={modalRef} onAccept={() => { setExclusiveRequest(false); handleAcceptExclusive(); }} onDecline={() => { setExclusiveRequest(false); setClankyMsg("declined the exclusive... their loss 💸"); }} />
+      )}
 
       {/* Exclusive banner */}
       {inExclusive && (
@@ -709,9 +975,19 @@ function StreamDashboard({ chosenName, track }: { chosenName: string; track: str
           ))}
         </div>
         <div style={{ display: "flex", gap: "28px", alignItems: "center", marginRight: "28px" }}>
-          <div style={{ textAlign: "center" }}>
-            <div style={{ fontSize: "9px", color: "#AAA", letterSpacing: "0.06em", marginBottom: "1px" }}>EFFICIENCY</div>
+          <div style={{ textAlign: "center", position: "relative" }}>
+            <div style={{ fontSize: "9px", color: "#AAA", letterSpacing: "0.06em", marginBottom: "1px", display: "flex", alignItems: "center", gap: "4px", justifyContent: "center" }}>
+              EFFICIENCY
+              <span onClick={() => setShowEffTip(v => !v)} style={{ cursor: "pointer", width: "12px", height: "12px", borderRadius: "50%", border: "0.5px solid #AAA", fontSize: "8px", color: "#AAA", display: "inline-flex", alignItems: "center", justifyContent: "center", lineHeight: 1 }}>?</span>
+            </div>
             <div style={{ fontSize: "11px", color: "#000" }}>72.3%</div>
+            {showEffTip && (
+              <div onClick={() => setShowEffTip(false)} style={{ position: "absolute", top: "110%", right: 0, width: "220px", backgroundColor: "#0a0a0a", border: "0.5px solid #333", borderRadius: "8px", padding: "12px 14px", zIndex: 300, cursor: "pointer" }}>
+                <div style={{ fontSize: "10px", fontWeight: 500, color: "#ffc8d5", marginBottom: "6px" }}>efficiency ratio</div>
+                <div style={{ fontSize: "10px", color: "#aaa", lineHeight: 1.6 }}>agents kept ÷ total agents. high efficiency = you held their attention without giving too much away. aim for 60%+. this plus earnings = your final score.</div>
+                <div style={{ fontSize: "9px", color: "#555", marginTop: "8px" }}>click to close</div>
+              </div>
+            )}
           </div>
           <div ref={tipsRef as React.RefObject<HTMLDivElement>} style={{ ...hl("tips"), textAlign: "center", padding: "2px 6px" }}>
             <div style={{ fontSize: "9px", color: "#AAA", letterSpacing: "0.06em", marginBottom: "1px" }}>TIPS</div>
@@ -740,12 +1016,18 @@ function StreamDashboard({ chosenName, track }: { chosenName: string; track: str
               {isLive && <div style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#ef4444", animation: "pulse 2s infinite" }} />}
               {isLive ? "LIVE" : "● OFFLINE"}
             </div>
-            <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-              <circle cx="24" cy="24" r="23" fill="#1E1E1E" stroke="#333" strokeWidth="1" />
-              <circle cx="24" cy="24" r="10" stroke="#444" strokeWidth="2" />
-              <circle cx="24" cy="24" r="4" fill="#333" />
-            </svg>
-            <div style={{ fontSize: "10px", color: "#444", marginTop: "12px", letterSpacing: "0.08em" }}>no signal</div>
+            {/* Video always mounted so ref is always attached */}
+            <video ref={videoRef} autoPlay playsInline muted style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)", display: isLive ? "block" : "none" }} />
+            {!isLive && (
+              <>
+                <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+                  <circle cx="24" cy="24" r="23" fill="#1E1E1E" stroke="#333" strokeWidth="1" />
+                  <circle cx="24" cy="24" r="10" stroke="#444" strokeWidth="2" />
+                  <circle cx="24" cy="24" r="4" fill="#333" />
+                </svg>
+                <div style={{ fontSize: "10px", color: "#444", marginTop: "12px", letterSpacing: "0.08em" }}>no signal</div>
+              </>
+            )}
           </div>
 
           {/* Start Show */}
@@ -779,11 +1061,11 @@ function StreamDashboard({ chosenName, track }: { chosenName: string; track: str
             ))}
           </div>
 
-          {/* Clanky — more prominent */}
-          <div style={{ margin: "0 12px 10px", padding: "14px 16px", backgroundColor: "#0a0a0a", borderRadius: "8px", border: "1px solid rgba(255,200,213,0.35)", boxShadow: "0 0 24px rgba(255,200,213,0.1)" }}>
-            <div style={{ fontSize: "9px", color: "rgba(255,200,213,0.45)", letterSpacing: "0.1em", marginBottom: "6px" }}>⚙️ CLANKY — your coach</div>
-            <div style={{ fontSize: "11px", color: "#ffc8d5", lineHeight: 1.7 }}>{clankyMsg}</div>
-            <div style={{ fontSize: "9px", color: "rgba(255,200,213,0.25)", marginTop: "8px" }}>hints appear here in real time~</div>
+          {/* Clanky — neon glow */}
+          <div style={{ margin: "0 12px 10px", padding: "14px 16px", backgroundColor: "#050505", borderRadius: "8px", border: "1px solid #ffc8d5", boxShadow: "0 0 18px rgba(255,200,213,0.45), inset 0 0 12px rgba(255,200,213,0.06)", animation: "clankyPulse 3s ease-in-out infinite" }}>
+            <div style={{ fontSize: "9px", color: "#ffc8d5", letterSpacing: "0.1em", marginBottom: "6px", textShadow: "0 0 8px #ffc8d5" }}>⚙️ CLANKY — your coach</div>
+            <div style={{ fontSize: "11px", color: "#ffc8d5", lineHeight: 1.7, textShadow: "0 0 6px rgba(255,200,213,0.4)" }}>{clankyMsg}</div>
+            <div style={{ fontSize: "9px", color: "rgba(255,200,213,0.35)", marginTop: "8px" }}>hints appear here in real time~</div>
           </div>
 
           <div style={{ borderTop: "0.5px dashed #EEE", height: "40px", display: "flex", alignItems: "center", paddingLeft: "16px", marginTop: "auto", flexShrink: 0 }}>
@@ -818,6 +1100,24 @@ function StreamDashboard({ chosenName, track }: { chosenName: string; track: str
             })}
           </div>
 
+          {/* Auto-prompts for exclusive — show 3 clickable responses */}
+          {inExclusive && chatTab === "paid" && (() => {
+            const prompts: Record<string, string[]> = {
+              Jester: ["lol ok here's one...", "you want unhinged? watch this", "ok fine but don't say i didn't warn you"],
+              Mommy: ["i hear you. come here.", "it's going to be okay, i promise.", "tell me everything. i'm listening."],
+              Daddy: ["here's what i actually think.", "you already know the answer.", "let me ask you something first."],
+              Alchemist: ["your energy is saying something different.", "i'm picking up on something.", "let me read this properly."],
+            };
+            const opts = prompts[track] ?? prompts.Jester;
+            return (
+              <div style={{ padding: "8px 16px", borderBottom: "0.5px solid #eee", display: "flex", gap: "6px", flexWrap: "wrap", flexShrink: 0 }}>
+                {opts.map(p => (
+                  <button key={p} onClick={() => { setChatInput(p); }} style={{ fontFamily: "inherit", fontSize: "10px", padding: "4px 10px", borderRadius: "20px", border: "0.5px solid #ffc8d522", backgroundColor: "#0a0a0a", color: "#ffc8d5", cursor: "pointer", outline: "none" }}>{p}</button>
+                ))}
+              </div>
+            );
+          })()}
+
           {/* Messages */}
           <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px", display: "flex", flexDirection: "column", gap: "10px" }}>
             {chatTab === "paid" ? (
@@ -834,6 +1134,12 @@ function StreamDashboard({ chosenName, track }: { chosenName: string; track: str
                     </div>
                   </div>
                 ))}
+                {agentTyping && (
+                  <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
+                    <div style={{ width: "22px", height: "22px", borderRadius: "50%", backgroundColor: "#f0f0f0", border: "0.5px solid #eee", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "9px", color: "#888", flexShrink: 0 }}>B</div>
+                    <div style={{ fontSize: "11px", color: "#bbb", fontStyle: "italic" }}>bigtipper_x is typing...</div>
+                  </div>
+                )}
                 <div ref={paidEndRef} />
               </>
             ) : (
@@ -874,6 +1180,7 @@ function StreamDashboard({ chosenName, track }: { chosenName: string; track: str
         @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0} }
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
         @keyframes paidPulse { 0%,100%{opacity:1} 50%{opacity:0.45} }
+        @keyframes clankyPulse { 0%,100%{box-shadow:0 0 18px rgba(255,200,213,0.45),inset 0 0 12px rgba(255,200,213,0.06)} 50%{box-shadow:0 0 32px rgba(255,200,213,0.8),inset 0 0 18px rgba(255,200,213,0.12)} }
       `}</style>
     </div>
   );
