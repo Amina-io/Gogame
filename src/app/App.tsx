@@ -251,13 +251,32 @@ function playTourClick() {
 function playClick() {
   try {
     const ctx = new AudioContext();
-    const osc = ctx.createOscillator(); const gain = ctx.createGain();
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.frequency.value = 1200; osc.type = "square";
-    gain.gain.setValueAtTime(0.04, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.06);
-    osc.start(); osc.stop(ctx.currentTime + 0.06);
+    // Two-tone punch — loud, snappy, cuts through music
+    [[0, 1400, 0.28], [0.03, 900, 0.18]].forEach(([t, freq, vol]) => {
+      const osc = ctx.createOscillator(); const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = freq as number; osc.type = "square";
+      gain.gain.setValueAtTime(vol as number, ctx.currentTime + (t as number));
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + (t as number) + 0.08);
+      osc.start(ctx.currentTime + (t as number)); osc.stop(ctx.currentTime + (t as number) + 0.08);
+    });
   } catch (_) {}
+}
+
+function startIntakeMusic(): () => void {
+  try {
+    const audio = new Audio("/365.mp3");
+    audio.loop = true; audio.volume = 0;
+    audio.play().catch(() => {});
+    // Fade in over 2s
+    let vol = 0;
+    const fade = setInterval(() => {
+      vol = Math.min(vol + 0.01, 0.18);
+      audio.volume = vol;
+      if (vol >= 0.18) clearInterval(fade);
+    }, 100);
+    return () => { audio.pause(); audio.currentTime = 0; };
+  } catch (_) { return () => {}; }
 }
 
 function startTourMusic(): () => void {
@@ -300,6 +319,7 @@ const LORE_LINES = [
   "The government launched a make work program:",
   "teach agents about desire.", "",
   "You have been selected.", "",
+  "The first job is also the last.", "",
   "This is the future.", "WE'RE ALL WHORES.",
 ];
 
@@ -334,30 +354,59 @@ function LoreLine({ line, delay }: { line: string; delay: number }) {
 function IntroScreen({ onDone }: { onDone: () => void }) {
   const [phase, setPhase] = useState<"lore" | "logo">("lore");
   const [logoIn, setLogoIn] = useState(false);
+  const musicStopRef = useRef<(() => void) | null>(null);
 
   const totalMs = LORE_LINES.reduce((a, l) => a + (l === "" ? 280 : l.length * 36 + 380), 0);
 
   useEffect(() => {
     const t = setTimeout(() => {
       setPhase("logo");
+      // Start 365.mp3 as logo appears, keep playing into intake
+      musicStopRef.current = startIntakeMusic();
       setTimeout(() => setLogoIn(true), 200);
-      setTimeout(onDone, 4200);
+      setTimeout(() => onDone(), 4200);
     }, totalMs + 500);
     return () => clearTimeout(t);
   }, []);
 
   if (phase === "logo") return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#000", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'JetBrains Mono', monospace" }}>
-      <div style={{ textAlign: "center", opacity: logoIn ? 1 : 0, transform: logoIn ? "scale(1)" : "scale(0.2)", transition: "opacity 1200ms ease, transform 1800ms cubic-bezier(0.34,1.2,0.64,1)" }}>
-        <div style={{ width: "120px", height: "120px", borderRadius: "28px", backgroundColor: "#ffc8d5", margin: "0 auto 24px", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 80px rgba(255,200,213,0.5)" }}>
-          <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
-            <circle cx="32" cy="32" r="28" fill="#000" />
-            <circle cx="32" cy="32" r="16" stroke="#ffc8d5" strokeWidth="3" />
-            <circle cx="32" cy="32" r="6" fill="#ffc8d5" />
+    <div style={{ minHeight: "100vh", backgroundColor: "#0a0a0a", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'JetBrains Mono', monospace" }}>
+      <div style={{ textAlign: "center", opacity: logoIn ? 1 : 0, transform: logoIn ? "scale(1)" : "scale(0.85)", transition: "opacity 1400ms ease, transform 1800ms cubic-bezier(0.34,1.1,0.64,1)" }}>
+        {/* Outer stamp ring */}
+        <div style={{ position: "relative", width: "220px", height: "220px", margin: "0 auto 32px" }}>
+          <svg width="220" height="220" viewBox="0 0 220 220" fill="none" style={{ position: "absolute", inset: 0 }}>
+            {/* Dashed outer ring */}
+            <circle cx="110" cy="110" r="104" stroke="#ffc8d5" strokeWidth="1.5" strokeDasharray="4 3" opacity="0.6" />
+            {/* Solid inner ring */}
+            <circle cx="110" cy="110" r="90" stroke="#ffc8d5" strokeWidth="0.75" opacity="0.4" />
+            {/* Stars around ring — 12 evenly spaced */}
+            {Array.from({length: 12}).map((_, i) => {
+              const angle = (i / 12) * Math.PI * 2 - Math.PI / 2;
+              const x = 110 + 98 * Math.cos(angle);
+              const y = 110 + 98 * Math.sin(angle);
+              return <text key={i} x={x} y={y} textAnchor="middle" dominantBaseline="middle" fontSize="8" fill="#ffc8d5" opacity="0.5">★</text>;
+            })}
+            {/* Center emblem */}
+            <circle cx="110" cy="110" r="38" stroke="#ffc8d5" strokeWidth="1" opacity="0.5" />
+            <circle cx="110" cy="110" r="24" stroke="#ffc8d5" strokeWidth="0.5" opacity="0.3" />
+            <circle cx="110" cy="110" r="8" fill="#ffc8d5" opacity="0.7" />
+            <line x1="110" y1="72" x2="110" y2="148" stroke="#ffc8d5" strokeWidth="0.5" opacity="0.3" />
+            <line x1="72" y1="110" x2="148" y2="110" stroke="#ffc8d5" strokeWidth="0.5" opacity="0.3" />
           </svg>
+          {/* Text in center of stamp */}
+          <div style={{ position: "absolute", inset: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: "2px" }}>
+            <div style={{ fontSize: "9px", color: "#ffc8d5", letterSpacing: "0.35em", opacity: 0.5 }}>DEPT. OF</div>
+            <div style={{ fontSize: "22px", fontWeight: 700, color: "#fff", letterSpacing: "0.15em", lineHeight: 1 }}>GOONER</div>
+            <div style={{ fontSize: "22px", fontWeight: 700, color: "#fff", letterSpacing: "0.15em", lineHeight: 1 }}>OS</div>
+            <div style={{ fontSize: "11px", color: "#ffc8d5", letterSpacing: "0.2em", marginTop: "2px" }}>2037</div>
+          </div>
         </div>
-        <div style={{ fontSize: "20px", fontWeight: 500, color: "#fff", letterSpacing: "0.12em" }}>GOONER OS 2037</div>
-        <div style={{ fontSize: "10px", color: "#555", marginTop: "8px", letterSpacing: "0.2em" }}>v2.7 — initializing</div>
+        {/* Below stamp: official-looking type */}
+        <div style={{ borderTop: "0.5px solid #333", borderBottom: "0.5px solid #333", padding: "8px 0", marginBottom: "12px" }}>
+          <div style={{ fontSize: "9px", color: "#555", letterSpacing: "0.4em" }}>FEDERAL BUREAU OF SYNTHETIC DESIRE</div>
+        </div>
+        <div style={{ fontSize: "9px", color: "#333", letterSpacing: "0.2em" }}>v2.7.0 — INITIALIZING MANDATE PROTOCOL</div>
+        <div style={{ fontSize: "8px", color: "#2a2a2a", marginTop: "4px", letterSpacing: "0.1em" }}>AUTHORIZED USE ONLY · FORM GOS-2037-Ω</div>
       </div>
     </div>
   );
@@ -428,6 +477,10 @@ function Screen2({ types, type, setType, onContinue }: { types: TypeCard[]; type
     <>
       <StepLabel step="intake_02" />
       <Heading>Now — what kind of whore<br />will you be?</Heading>
+      <div style={{ fontSize: "11px", color: "#888", lineHeight: 1.65, marginBottom: "20px", borderLeft: "2px solid #ffc8d5", paddingLeft: "12px" }}>
+        Desire is not random — it clusters around archetypes, primordial shapes the psyche already knows how to want.<br />
+        <span style={{ color: "#aaa" }}>Each archetype is a different key. Agents respond to the one that fits their lock.</span>
+      </div>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", marginBottom: "32px" }}>
         {types.map((t) => <OptionCard key={t.id} label={t.label} desc={t.desc} selected={type === t.id} onClick={() => setType(t.id)} />)}
       </div>
@@ -495,7 +548,7 @@ function Screen5({ chosenName, onBegin }: { chosenName: string; onBegin: () => v
       <div style={{ fontSize: "17px", fontWeight: 500, color: "#000", marginBottom: "12px", lineHeight: 1.55, opacity: stage >= 1 ? 1 : 0, transition: "opacity 400ms ease" }}>{chosenName} eh?</div>
       <div style={{ fontSize: "13px", color: "#888", marginBottom: "24px", lineHeight: 1.6, opacity: stage >= 2 ? 1 : 0, transition: "opacity 400ms ease" }}>The name you chose for yourself reveals a lot...</div>
       <div style={{ fontSize: "11px", color: "#aaa", marginBottom: "48px", lineHeight: 1.7, padding: "12px 14px", border: "0.5px solid #eee", borderRadius: "6px", opacity: stage >= 2 ? 1 : 0, transition: "opacity 400ms ease" }}>
-        <span style={{ color: "#000", fontWeight: 500 }}>how to win:</span> complete at least one exclusive paid show AND earn $15+. your efficiency ratio (agents kept ÷ total) should stay above 60%. all three together = victory.
+        <span style={{ color: "#000", fontWeight: 500 }}>how to win:</span> complete at least one exclusive paid show AND earn $50+ before time runs out. your efficiency ratio (agents kept ÷ total) must stay above 60%. you have <span style={{ color: "#000", fontWeight: 500 }}>10 minutes</span>. all three together = victory.
       </div>
       <div style={{ opacity: stage >= 3 ? 1 : 0, transition: "opacity 400ms ease" }}>
         <ActionButton enabled={stage >= 3} onClick={onBegin} label="begin tour ↗" accent />
@@ -841,7 +894,12 @@ function StreamDashboard({ chosenName, track }: { chosenName: string; track: str
 
       fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": import.meta.env.VITE_ANTHROPIC_API_KEY ?? "",
+          "anthropic-version": "2023-06-01",
+          "anthropic-dangerous-direct-browser-access": "true",
+        },
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514",
           max_tokens: 120,
@@ -1188,8 +1246,25 @@ function StreamDashboard({ chosenName, track }: { chosenName: string; track: str
 
 // ─── Root ─────────────────────────────────────────────────────────────────────
 
+function TrainingScreen({ onDone }: { onDone: () => void }) {
+  const [textVis, setTextVis] = useState(false);
+  useEffect(() => {
+    setTimeout(() => setTextVis(true), 300);
+    setTimeout(onDone, 3200);
+  }, []);
+  return (
+    <div style={{ position: "fixed", inset: 0, backgroundColor: "#ffc8d5", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'JetBrains Mono', monospace", zIndex: 999 }}>
+      <div style={{ textAlign: "center", opacity: textVis ? 1 : 0, transition: "opacity 600ms ease" }}>
+        <div style={{ fontSize: "9px", color: "rgba(0,0,0,0.4)", letterSpacing: "0.4em", marginBottom: "16px" }}>GOONER OS 2037 · FORM GOS-2037-Ω</div>
+        <div style={{ fontSize: "18px", fontWeight: 700, color: "#000", letterSpacing: "0.12em", lineHeight: 1.5 }}>YOUR GOVERNMENT MANDATED<br />WHORE TRAINING BEGINS</div>
+        <div style={{ fontSize: "9px", color: "rgba(0,0,0,0.35)", marginTop: "16px", letterSpacing: "0.2em" }}>please stand by</div>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
-  const [phase, setPhase] = useState<"intro" | "intake" | "dashboard">("intro");
+  const [phase, setPhase] = useState<"intro" | "intake" | "training" | "dashboard">("intro");
   const [screen, setScreen] = useState<ScreenId>(1);
   const [vis, setVis] = useState(true);
   const [mode, setMode] = useState<ModeId | null>(null);
@@ -1202,20 +1277,18 @@ export default function App() {
   const nameOptions = NAME_SUGGESTIONS[type ?? "Jester"] ?? [];
 
   if (phase === "intro") return <IntroScreen onDone={() => setPhase("intake")} />;
+  if (phase === "training") return <TrainingScreen onDone={() => setPhase("dashboard")} />;
   if (phase === "dashboard") return <StreamDashboard chosenName={chosenName ?? "Unknown"} track={type ?? "Jester"} />;
 
   return (
     <div style={{ fontFamily: "'JetBrains Mono', monospace", backgroundColor: "#FFF", minHeight: "100vh", display: "flex", justifyContent: "center" }}>
-      {/* 365.mp3 plays softly during intake */}
-      <audio autoPlay loop style={{ display: "none" }}>
-        <source src="/365.mp3" type="audio/mpeg" />
-      </audio>
+
       <div style={{ maxWidth: "480px", width: "100%", paddingTop: "48px", paddingLeft: "24px", paddingRight: "24px", paddingBottom: "64px", opacity: vis ? 1 : 0, transition: "opacity 140ms ease" }}>
         {screen === 1 && <Screen1 mode={mode} setMode={m => setMode(m)} onContinue={() => { setType(null); go(2); }} />}
         {screen === 2 && <Screen2 types={CAMERA_TYPES} type={type} setType={setType} onContinue={() => go(3)} />}
         {screen === 3 && <Screen3 typeName={selectedType?.label ?? ""} nameInput={nameInput} setNameInput={setNameInput} onEnter={() => go(4)} />}
         {screen === 4 && <Screen4 typeName={selectedType?.label ?? ""} inputName={nameInput} nameOptions={nameOptions} chosenName={chosenName} setChosenName={setChosenName} onConfirm={() => go(5)} />}
-        {screen === 5 && <Screen5 chosenName={chosenName ?? nameOptions[0]} onBegin={() => setPhase("dashboard")} />}
+        {screen === 5 && <Screen5 chosenName={chosenName ?? nameOptions[0]} onBegin={() => setPhase("training")} />}
       </div>
       <style>{`@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}`}</style>
     </div>
