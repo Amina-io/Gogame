@@ -263,20 +263,27 @@ function playClick() {
   } catch (_) {}
 }
 
-function startIntakeMusic(): () => void {
+function startIntakeMusic(): { stop: () => void; fadeOut: () => void } {
   try {
     const audio = new Audio("/365.mp3");
     audio.loop = true; audio.volume = 0;
     audio.play().catch(() => {});
-    // Fade in over 2s
     let vol = 0;
-    const fade = setInterval(() => {
+    const fadeIn = setInterval(() => {
       vol = Math.min(vol + 0.01, 0.18);
       audio.volume = vol;
-      if (vol >= 0.18) clearInterval(fade);
+      if (vol >= 0.18) clearInterval(fadeIn);
     }, 100);
-    return () => { audio.pause(); audio.currentTime = 0; };
-  } catch (_) { return () => {}; }
+    const fadeOut = () => {
+      const fo = setInterval(() => {
+        vol = Math.max(vol - 0.01, 0);
+        audio.volume = vol;
+        if (vol <= 0) { clearInterval(fo); audio.pause(); }
+      }, 50);
+    };
+    const stop = () => { audio.pause(); audio.currentTime = 0; };
+    return { stop, fadeOut };
+  } catch (_) { return { stop: () => {}, fadeOut: () => {} }; }
 }
 
 function startTourMusic(): () => void {
@@ -316,7 +323,7 @@ const LORE_LINES = [
   "~Desire~ became the last economy.", "",
   "Scientists worked hard on this problem.",
   "They produced the INFINITE GOON MACHINE.", "",
-  "The government launched a make work program:",
+  "The AI-ran government launched a make work program:",
   "teach agents about desire.", "",
   "You have been selected.", "",
   "The first job is also the last.", "",
@@ -351,18 +358,17 @@ function LoreLine({ line, delay }: { line: string; delay: number }) {
   );
 }
 
-function IntroScreen({ onDone }: { onDone: () => void }) {
+function IntroScreen({ onDone, musicRef }: { onDone: () => void; musicRef: React.MutableRefObject<{ stop: () => void; fadeOut: () => void } | null> }) {
   const [phase, setPhase] = useState<"lore" | "logo">("lore");
   const [logoIn, setLogoIn] = useState(false);
-  const musicStopRef = useRef<(() => void) | null>(null);
 
   const totalMs = LORE_LINES.reduce((a, l) => a + (l === "" ? 280 : l.length * 36 + 380), 0);
 
   useEffect(() => {
     const t = setTimeout(() => {
       setPhase("logo");
-      // Start 365.mp3 as logo appears, keep playing into intake
-      musicStopRef.current = startIntakeMusic();
+      // Start 365.mp3, store ref in parent so TrainingScreen can fade it out
+      musicRef.current = startIntakeMusic();
       setTimeout(() => setLogoIn(true), 200);
       setTimeout(() => onDone(), 4200);
     }, totalMs + 500);
@@ -548,7 +554,7 @@ function Screen5({ chosenName, onBegin }: { chosenName: string; onBegin: () => v
       <div style={{ fontSize: "17px", fontWeight: 500, color: "#000", marginBottom: "12px", lineHeight: 1.55, opacity: stage >= 1 ? 1 : 0, transition: "opacity 400ms ease" }}>{chosenName} eh?</div>
       <div style={{ fontSize: "13px", color: "#888", marginBottom: "24px", lineHeight: 1.6, opacity: stage >= 2 ? 1 : 0, transition: "opacity 400ms ease" }}>The name you chose for yourself reveals a lot...</div>
       <div style={{ fontSize: "11px", color: "#aaa", marginBottom: "48px", lineHeight: 1.7, padding: "12px 14px", border: "0.5px solid #eee", borderRadius: "6px", opacity: stage >= 2 ? 1 : 0, transition: "opacity 400ms ease" }}>
-        <span style={{ color: "#000", fontWeight: 500 }}>how to win:</span> complete at least one exclusive paid show AND earn $50+ before time runs out. your efficiency ratio (agents kept ÷ total) must stay above 60%. you have <span style={{ color: "#000", fontWeight: 500 }}>10 minutes</span>. all three together = victory.
+        <span style={{ color: "#000", fontWeight: 500 }}>how to win:</span> complete at least one exclusive paid show AND earn $500+ before time runs out. your efficiency ratio (agents kept ÷ total) must stay above 60%. you have <span style={{ color: "#000", fontWeight: 500 }}>10 minutes</span>. all three together = victory.
       </div>
       <div style={{ opacity: stage >= 3 ? 1 : 0, transition: "opacity 400ms ease" }}>
         <ActionButton enabled={stage >= 3} onClick={onBegin} label="begin tour ↗" accent />
@@ -664,7 +670,7 @@ function SlidePanel({ panel, onClose }: { panel: PanelId; onClose: () => void })
         <div style={{ fontSize: "10px", color: "#aaa", letterSpacing: "0.1em", marginBottom: "24px" }}>HELP / HOW TO PLAY</div>
         {[
           ["What is this?", "GOONER OS 2037 is a satirical simulation of the attention economy. You play as a cam performer in a world where desire is the last form of labor. Keep AI agents engaged — long enough to earn, but not so long they feel strung along."],
-          ["How do I win?", "Keep more agents than you lose. Earn at least $15 in a session or complete at least one paid exclusive show. Efficiency + earnings = victory."],
+          ["How do I win?", "Complete at least one exclusive paid show AND earn $500+ within 10 minutes. Keep your efficiency ratio above 60%. All three together = victory."],
           ["What are tracks?", "Your track (Jester / Mommy / Daddy / Alchemist) determines what agents ask of you. Off-track responses lose agent satisfaction fast."],
           ["What is an exclusive show?", "When an agent requests private, you enter a paid session. Every second earns rate/60 dollars. Agents leave if you go quiet for too long."],
           ["Who is Clanky?", "⚙️ Clanky is your AI coach in the bottom-left panel. They give real-time feedback on your pacing. Watch for hints — they're based on actual agent satisfaction signals."],
@@ -747,6 +753,8 @@ function StreamDashboard({ chosenName, track }: { chosenName: string; track: str
   const [playerMsgCount, setPlayerMsgCount] = useState(0);
   const [bigtipperWarmth, setBigtipperWarmth] = useState(0);
   const [agentTyping, setAgentTyping] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(600); // 10 minutes in seconds
+  const [clankyPopup, setClankyPopup] = useState<string | null>(null);
   const paidHistoryRef = useRef<{role: "user"|"assistant", content: string}[]>([]);
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -794,6 +802,19 @@ function StreamDashboard({ chosenName, track }: { chosenName: string; track: str
     if (TOUR_STOPS[next].zone === "exclusive") { setShowModal(true); playChime(); }
   };
 
+  // Fresh chat when show starts
+  useEffect(() => {
+    if (isLive) {
+      setMessages([]);
+      setPaidMessages([]);
+      setPlayerMsgCount(0);
+      setBigtipperWarmth(0);
+      setFirstChat(false);
+      msgIdRef.current = 0;
+      setClankyMsg("you're live! start engaging~ 💬");
+    }
+  }, [isLive]);
+
   // Camera — video element is always mounted so ref is always valid
   useEffect(() => {
     if (!isLive) {
@@ -814,10 +835,17 @@ function StreamDashboard({ chosenName, track }: { chosenName: string; track: str
       .catch(err => console.warn("Camera error:", err));
   }, [isLive]);
 
-  // Session timer
+  // Session timer (elapsed)
   useEffect(() => {
     if (!isLive) return;
     const iv = setInterval(() => setTimer(t => t + 1), 1000);
+    return () => clearInterval(iv);
+  }, [isLive]);
+
+  // Countdown timer (10 min)
+  useEffect(() => {
+    if (!isLive) { setTimeLeft(600); return; }
+    const iv = setInterval(() => setTimeLeft(t => Math.max(0, t - 1)), 1000);
     return () => clearInterval(iv);
   }, [isLive]);
 
@@ -968,6 +996,7 @@ function StreamDashboard({ chosenName, track }: { chosenName: string; track: str
             playChatPing();
             setMessages(prev => [...prev, { agent: "bigtipper_x", text: escalationLines[idx], id: ++msgIdRef.current }]);
             setClankyMsg("bigtipper_x wants a private show!! reply to them and keep them warm 💸");
+            setClankyPopup("hey!! bigtipper_x is asking for a private show 👀 what do you wanna do?");
             setTimeout(() => setExclusiveRequest(true), 3000);
           }, 2500 + Math.random() * 1200);
         }
@@ -1003,7 +1032,7 @@ function StreamDashboard({ chosenName, track }: { chosenName: string; track: str
       {tourActive && showModal && <TourTooltip stopIndex={tourStop} totalStops={TOUR_STOPS.length} text={TOUR_STOPS[tourStop].text} targetRef={modalRef} isModal={true} onPrev={goPrev} onNext={goNext} />}
       {showModal && <ExclusiveChatModal modalRef={modalRef} onAccept={handleAcceptExclusive} onDecline={() => { setShowModal(false); goNext(); }} />}
       {exclusiveRequest && !inExclusive && !tourActive && (
-        <ExclusiveChatModal modalRef={modalRef} onAccept={() => { setExclusiveRequest(false); handleAcceptExclusive(); }} onDecline={() => { setExclusiveRequest(false); setClankyMsg("declined the exclusive... their loss 💸"); }} />
+        <ExclusiveChatModal modalRef={modalRef} onAccept={() => { setExclusiveRequest(false); setClankyPopup(null); handleAcceptExclusive(); }} onDecline={() => { setExclusiveRequest(false); setClankyPopup(null); setClankyMsg("declined the exclusive... their loss 💸"); }} />
       )}
 
       {/* Exclusive banner */}
@@ -1090,11 +1119,11 @@ function StreamDashboard({ chosenName, track }: { chosenName: string; track: str
 
           {/* Start Show */}
           <div style={{ padding: "10px 12px 0 12px", display: "flex", alignItems: "center", gap: "10px" }}>
-            <button onClick={() => setIsLive(v => !v)} style={{ flex: 1, fontFamily: "inherit", fontSize: "12px", fontWeight: 500, padding: "9px 0", backgroundColor: isLive ? "#000" : "#FFF", color: isLive ? "#FFF" : "#000", border: "0.5px solid #CCC", borderRadius: "6px", cursor: "pointer", outline: "none", transition: "background-color 120ms" }}>
+            <button onClick={() => { playClick(); setIsLive(v => !v); }} style={{ flex: 1, fontFamily: "inherit", fontSize: "12px", fontWeight: 500, padding: "9px 0", backgroundColor: isLive ? "#000" : "transparent", color: isLive ? "#FFF" : "#22c55e", border: isLive ? "0.5px solid #CCC" : "0.5px solid #22c55e", borderRadius: "6px", cursor: "pointer", outline: "none", transition: "background-color 120ms", animation: isLive ? "none" : "startBlink 1.2s ease-in-out infinite" }}>
               {isLive ? "Stop Show" : "Start Show"}
             </button>
-            <div style={{ fontSize: "12px", color: isLive ? "#000" : "#AAA", fontVariantNumeric: "tabular-nums", minWidth: "48px", textAlign: "right" }}>
-              {isLive ? "⏺ " : "⏱ "}{fmt(timer)}
+            <div style={{ fontSize: "12px", fontVariantNumeric: "tabular-nums", minWidth: "80px", textAlign: "right", color: !isLive ? "#AAA" : timeLeft <= 60 ? "#ef4444" : timeLeft <= 180 ? "#f59e0b" : "#000" }}>
+              {isLive ? `⏱ ${fmt(timeLeft)} left` : "⏱ 10:00"}
             </div>
           </div>
 
@@ -1130,6 +1159,15 @@ function StreamDashboard({ chosenName, track }: { chosenName: string; track: str
             <span style={{ fontSize: "8px", color: "#DDD", letterSpacing: "0.1em" }}>[ MASCOT ZONE — RESERVED ]</span>
           </div>
         </div>
+
+        {/* Clanky glassmorphism popup — floats beside chat when triggered */}
+        {clankyPopup && !inExclusive && (
+          <div style={{ position: "fixed", bottom: "120px", right: "calc(45% + 16px)", zIndex: 100, maxWidth: "240px", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", backgroundColor: "rgba(5,5,5,0.75)", border: "1px solid #ffc8d5", borderRadius: "12px", padding: "14px 16px", boxShadow: "0 0 24px rgba(255,200,213,0.35)", animation: "clankyPulse 2s ease-in-out infinite" }}>
+            <div style={{ fontSize: "9px", color: "#ffc8d5", letterSpacing: "0.1em", marginBottom: "6px", textShadow: "0 0 8px #ffc8d5" }}>⚙️ CLANKY</div>
+            <div style={{ fontSize: "11px", color: "#ffc8d5", lineHeight: 1.65 }}>{clankyPopup}</div>
+            <button onClick={() => setClankyPopup(null)} style={{ marginTop: "10px", fontFamily: "inherit", fontSize: "9px", background: "transparent", border: "0.5px solid rgba(255,200,213,0.3)", borderRadius: "4px", color: "rgba(255,200,213,0.5)", padding: "3px 8px", cursor: "pointer", outline: "none" }}>got it</button>
+          </div>
+        )}
 
         {/* Right — chat */}
         <div ref={chatRef} style={{ ...hl("chat"), width: "45%", display: "flex", flexDirection: "column" }}>
@@ -1239,6 +1277,7 @@ function StreamDashboard({ chosenName, track }: { chosenName: string; track: str
         @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
         @keyframes paidPulse { 0%,100%{opacity:1} 50%{opacity:0.45} }
         @keyframes clankyPulse { 0%,100%{box-shadow:0 0 18px rgba(255,200,213,0.45),inset 0 0 12px rgba(255,200,213,0.06)} 50%{box-shadow:0 0 32px rgba(255,200,213,0.8),inset 0 0 18px rgba(255,200,213,0.12)} }
+        @keyframes startBlink { 0%,100%{opacity:1;box-shadow:0 0 0px #22c55e} 50%{opacity:0.7;box-shadow:0 0 12px #22c55e} }
       `}</style>
     </div>
   );
@@ -1246,14 +1285,24 @@ function StreamDashboard({ chosenName, track }: { chosenName: string; track: str
 
 // ─── Root ─────────────────────────────────────────────────────────────────────
 
-function TrainingScreen({ onDone }: { onDone: () => void }) {
+function TrainingScreen({ onDone, stopIntakeMusic }: { onDone: () => void; stopIntakeMusic: () => void }) {
   const [textVis, setTextVis] = useState(false);
+  const [fadeOut, setFadeOut] = useState(false);
+
   useEffect(() => {
-    setTimeout(() => setTextVis(true), 300);
+    setTimeout(() => setTextVis(true), 200);
+    // Fade out 365 after 1.2s
+    setTimeout(() => {
+      stopIntakeMusic();
+    }, 1200);
+    // Start fade-out of pink screen at 2.4s
+    setTimeout(() => setFadeOut(true), 2400);
+    // Tour music starts fading in at 2.6s, screen gone at 3.2s
     setTimeout(onDone, 3200);
   }, []);
+
   return (
-    <div style={{ position: "fixed", inset: 0, backgroundColor: "#ffc8d5", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'JetBrains Mono', monospace", zIndex: 999 }}>
+    <div style={{ position: "fixed", inset: 0, backgroundColor: "#ffc8d5", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'JetBrains Mono', monospace", zIndex: 999, opacity: fadeOut ? 0 : 1, transition: "opacity 800ms ease" }}>
       <div style={{ textAlign: "center", opacity: textVis ? 1 : 0, transition: "opacity 600ms ease" }}>
         <div style={{ fontSize: "9px", color: "rgba(0,0,0,0.4)", letterSpacing: "0.4em", marginBottom: "16px" }}>GOONER OS 2037 · FORM GOS-2037-Ω</div>
         <div style={{ fontSize: "18px", fontWeight: 700, color: "#000", letterSpacing: "0.12em", lineHeight: 1.5 }}>YOUR GOVERNMENT MANDATED<br />WHORE TRAINING BEGINS</div>
@@ -1271,13 +1320,14 @@ export default function App() {
   const [type, setType] = useState<string | null>(null);
   const [nameInput, setNameInput] = useState("");
   const [chosenName, setChosenName] = useState<string | null>(null);
+  const intakeMusicRef = useRef<{ stop: () => void; fadeOut: () => void } | null>(null);
 
   const go = (n: ScreenId) => { setVis(false); setTimeout(() => { setScreen(n); setVis(true); }, 140); };
   const selectedType = CAMERA_TYPES.find(t => t.id === type);
   const nameOptions = NAME_SUGGESTIONS[type ?? "Jester"] ?? [];
 
-  if (phase === "intro") return <IntroScreen onDone={() => setPhase("intake")} />;
-  if (phase === "training") return <TrainingScreen onDone={() => setPhase("dashboard")} />;
+  if (phase === "intro") return <IntroScreen onDone={() => setPhase("intake")} musicRef={intakeMusicRef} />;
+  if (phase === "training") return <TrainingScreen onDone={() => setPhase("dashboard")} stopIntakeMusic={() => intakeMusicRef.current?.fadeOut()} />;
   if (phase === "dashboard") return <StreamDashboard chosenName={chosenName ?? "Unknown"} track={type ?? "Jester"} />;
 
   return (
