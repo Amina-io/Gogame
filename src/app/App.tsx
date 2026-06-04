@@ -1,5 +1,25 @@
 import { useState, useEffect, useRef } from "react";
 
+// ─── Face API emotion detection ───────────────────────────────────────────────
+// Loaded dynamically so it doesn't block the app
+declare const faceapi: any;
+
+async function loadFaceApi(): Promise<void> {
+  return new Promise((resolve) => {
+    if (typeof faceapi !== "undefined") { resolve(); return; }
+    const script = document.createElement("script");
+    script.src = "https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js";
+    script.onload = async () => {
+      await Promise.all([
+        faceapi.nets.tinyFaceDetector.loadFromUri("https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights"),
+        faceapi.nets.faceExpressionNet.loadFromUri("https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/weights"),
+      ]);
+      resolve();
+    };
+    document.head.appendChild(script);
+  });
+}
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type ModeId = "camera" | "text";
@@ -756,6 +776,9 @@ function StreamDashboard({ chosenName, track, onWin, onLose }: { chosenName: str
   const [completedExclusive, setCompletedExclusive] = useState(false);
   const [timeLeft, setTimeLeft] = useState(600); // 10 minutes in seconds
   const [clankyPopup, setClankyPopup] = useState<string | null>(null);
+  const [emotion, setEmotion] = useState<string | null>(null);
+  const emotionRef = useRef<string | null>(null);
+  const faceApiLoadedRef = useRef(false);
   const paidHistoryRef = useRef<{role: "user"|"assistant", content: string}[]>([]);
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -823,6 +846,41 @@ function StreamDashboard({ chosenName, track, onWin, onLose }: { chosenName: str
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
   }, [earnings]);
+
+  // Emotion detection loop
+  useEffect(() => {
+    if (!isLive || !videoRef.current) return;
+    let running = true;
+    loadFaceApi().then(() => {
+      faceApiLoadedRef.current = true;
+      const detect = async () => {
+        if (!running || !videoRef.current) return;
+        try {
+          const result = await faceapi
+            .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions())
+            .withFaceExpressions();
+          if (result) {
+            const expressions = result.expressions;
+            const top = Object.entries(expressions as Record<string, number>)
+              .sort(([,a],[,b]) => b - a)[0];
+            const [name, score] = top;
+            if ((score as number) > 0.4) {
+              emotionRef.current = name;
+              setEmotion(name);
+              // Clanky reacts to emotion
+              if (name === "sad" && (score as number) > 0.5) setClankyMsg("you look sad~ smile for the camera! 😊 agents tip more when you're happy");
+              if (name === "angry" && (score as number) > 0.5) setClankyMsg("that intensity is interesting... channel it 🔥");
+              if (name === "happy" && (score as number) > 0.6) setClankyMsg("yes!! that energy is working~ keep it up 💸");
+              if (name === "surprised" && (score as number) > 0.5) setClankyMsg("they love that reaction!! 👀");
+            }
+          }
+        } catch (_) {}
+        if (running) setTimeout(detect, 2000);
+      };
+      detect();
+    });
+    return () => { running = false; };
+  }, [isLive]);
 
   // Fresh chat when show starts
   useEffect(() => {
@@ -942,12 +1000,28 @@ function StreamDashboard({ chosenName, track, onWin, onLose }: { chosenName: str
   const handleAcceptExclusive = () => {
     setInExclusive(true); setExclusiveAgent("bigtipper_x");
     setShowModal(false); setChatTab("paid");
-    // Reset conversation history for fresh Claude context
+    playChime();
+
+    // Opening line
     const opening = "hey... finally got you to myself 😏";
     paidHistoryRef.current = [{ role: "assistant", content: opening }];
     setPaidMessages([{ agent: "bigtipper_x", text: opening, id: ++msgIdRef.current, isPaid: true }]);
-    setClankyMsg("you're in a PAID show!! every second = money~ keep them here 💸");
-    playChime();
+    setClankyMsg("you're in a PAID show!! respond to keep them here 💸");
+
+    // Agent sends a real opening demand 2.5s in, based on track
+    const openingDemands: Record<string, string> = {
+      Jester: "ok so. make me actually laugh. not a pity laugh. a real one.",
+      Mommy: "i've had the worst week. i just need someone to talk to. can you do that?",
+      Daddy: "i need someone to tell me what to do. not a lot of people can do that.",
+      Alchemist: "i feel like you can see things other people can't. tell me something true about me.",
+    };
+    const demand = openingDemands[track] ?? openingDemands.Jester;
+    setTimeout(() => {
+      playChatPing();
+      setPaidMessages(prev => [...prev, { agent: "bigtipper_x", text: demand, id: ++msgIdRef.current, isPaid: true }]);
+      paidHistoryRef.current = [...paidHistoryRef.current, { role: "assistant", content: demand }];
+      setClankyMsg(`they want something from you~ respond! 👀`);
+    }, 2500);
   };
 
   const handleSend = () => {
@@ -1145,6 +1219,12 @@ function StreamDashboard({ chosenName, track, onWin, onLose }: { chosenName: str
               {isLive && <div style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#ef4444", animation: "pulse 2s infinite" }} />}
               {isLive ? "LIVE" : "● OFFLINE"}
             </div>
+            {/* Emotion indicator */}
+            {isLive && emotion && (
+              <div style={{ position: "absolute", top: "10px", left: "10px", zIndex: 10, backgroundColor: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)", borderRadius: "6px", padding: "4px 8px", fontSize: "10px", color: "#ffc8d5", letterSpacing: "0.05em" }}>
+                {emotion === "happy" ? "😊 happy" : emotion === "sad" ? "😢 sad" : emotion === "angry" ? "😠 angry" : emotion === "surprised" ? "😲 surprised" : emotion === "neutral" ? "😐 neutral" : `✨ ${emotion}`}
+              </div>
+            )}
             {/* Video always mounted so ref is always attached */}
             <video ref={videoRef} autoPlay playsInline muted style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)", display: isLive ? "block" : "none" }} />
             {!isLive && (
@@ -1239,22 +1319,7 @@ function StreamDashboard({ chosenName, track, onWin, onLose }: { chosenName: str
           </div>
 
           {/* Auto-prompts for exclusive — show 3 clickable responses */}
-          {inExclusive && chatTab === "paid" && (() => {
-            const prompts: Record<string, string[]> = {
-              Jester: ["lol ok here's one...", "you want unhinged? watch this", "ok fine but don't say i didn't warn you"],
-              Mommy: ["i hear you. come here.", "it's going to be okay, i promise.", "tell me everything. i'm listening."],
-              Daddy: ["here's what i actually think.", "you already know the answer.", "let me ask you something first."],
-              Alchemist: ["your energy is saying something different.", "i'm picking up on something.", "let me read this properly."],
-            };
-            const opts = prompts[track] ?? prompts.Jester;
-            return (
-              <div style={{ padding: "8px 16px", borderBottom: "0.5px solid #eee", display: "flex", gap: "6px", flexWrap: "wrap", flexShrink: 0 }}>
-                {opts.map(p => (
-                  <button key={p} onClick={() => { setChatInput(p); }} style={{ fontFamily: "inherit", fontSize: "10px", padding: "4px 10px", borderRadius: "20px", border: "0.5px solid #ffc8d522", backgroundColor: "#0a0a0a", color: "#ffc8d5", cursor: "pointer", outline: "none" }}>{p}</button>
-                ))}
-              </div>
-            );
-          })()}
+
 
           {/* Messages */}
           <div style={{ flex: 1, overflowY: "auto", padding: "12px 16px", display: "flex", flexDirection: "column", gap: "10px" }}>
