@@ -795,7 +795,7 @@ function ExclusiveChatModal({ modalRef, onAccept, onDecline }: { modalRef: React
     <div style={{ position: "fixed", inset: 0, zIndex: 250, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.7)" }}>
       <div ref={modalRef} style={{ backgroundColor: "#FFF", border: "0.5px solid #CCC", borderRadius: "6px", padding: "40px 48px", maxWidth: "420px", width: "90%", textAlign: "center", fontFamily: "'JetBrains Mono', monospace", boxShadow: "0 24px 80px rgba(0,0,0,0.3)" }}>
         <div style={{ fontSize: "11px", color: "#888", marginBottom: "16px", letterSpacing: "0.05em" }}>exclusive show request</div>
-        <div style={{ fontSize: "17px", fontWeight: 500, color: "#000", marginBottom: "12px", lineHeight: 1.5 }}>bigtipper_x has requested<br />an exclusive show!</div>
+        <div style={{ fontSize: "17px", fontWeight: 500, color: "#000", marginBottom: "12px", lineHeight: 1.5 }}>someone has requested<br />an exclusive show!</div>
         <div style={{ fontSize: "11px", color: "#ffc8d5", border: "0.5px solid #ffc8d5", borderRadius: "4px", padding: "6px 12px", marginBottom: "24px", display: "inline-block" }}>↑ accept → you'll move to the PAID tab</div>
         <div style={{ display: "flex", gap: "12px", justifyContent: "center" }}>
           <button onClick={onAccept} onMouseEnter={() => setHA(true)} onMouseLeave={() => setHA(false)}
@@ -1132,7 +1132,7 @@ function StreamDashboard({ chosenName, track, onWin, onLose }: { chosenName: str
     const text = chatInput.trim(); setChatInput("");
 
     if (inExclusive && chatTab === "paid") {
-      // ── PAID SHOW: Claude responds as bigtipper_x ──
+      // ── PAID SHOW: Claude responds as exclusive agent ──
       setPaidMessages(prev => [...prev, { agent: chosenName, text, id: ++msgIdRef.current, isPaid: true }]);
       setExclusiveIdle(0);
       // Add to conversation history
@@ -1161,19 +1161,19 @@ function StreamDashboard({ chosenName, track, onWin, onLose }: { chosenName: str
           playChatPing();
           // Check if agent is leaving
           if (reply === "LEAVE" || reply.startsWith("LEAVE")) {
-            setPaidMessages(prev => [...prev, { agent: "bigtipper_x", text: "...actually i'm good. bye.", id: ++msgIdRef.current, isPaid: true }]);
+            setPaidMessages(prev => [...prev, { agent: exclusiveAgent, text: "...actually i'm good. bye.", id: ++msgIdRef.current, isPaid: true }]);
             paidHistoryRef.current = [...paidHistoryRef.current, { role: "assistant", content: "...actually i'm good. bye." }];
             setTimeout(() => {
               handleEndExclusive(false);
             }, 1800);
           } else {
-            setPaidMessages(prev => [...prev, { agent: "bigtipper_x", text: reply, id: ++msgIdRef.current, isPaid: true }]);
+            setPaidMessages(prev => [...prev, { agent: exclusiveAgent, text: reply, id: ++msgIdRef.current, isPaid: true }]);
             paidHistoryRef.current = [...paidHistoryRef.current, { role: "assistant", content: reply }];
           }
         })
         .catch(() => {
           setAgentTyping(false);
-          setPaidMessages(prev => [...prev, { agent: "bigtipper_x", text: "ugh connection issues. whatever.", id: ++msgIdRef.current, isPaid: true }]);
+          setPaidMessages(prev => [...prev, { agent: exclusiveAgent, text: "ugh connection issues. whatever.", id: ++msgIdRef.current, isPaid: true }]);
         });
     } else {
       // ── FREE CHAT: post player message, random agents react ──
@@ -1203,10 +1203,10 @@ function StreamDashboard({ chosenName, track, onWin, onLose }: { chosenName: str
         const idx = Math.min(newWarmth - 1, escalationLines.length - 1);
         // At warmth 1–2: flirt, no exclusive yet
         if (newWarmth <= 2) {
-          const flirts = AGENT_REACTIONS.bigtipper_x;
+          const agentForFlirt = EXCLUSIVE_AGENTS[track] ?? "bigtipper_x"; const flirts = AGENT_REACTIONS[agentForFlirt] ?? AGENT_REACTIONS.bigtipper_x ?? [];
           setTimeout(() => {
             playChatPing();
-            setMessages(prev => [...prev, { agent: "bigtipper_x", text: flirts[Math.floor(Math.random() * flirts.length)], id: ++msgIdRef.current }]);
+            setMessages(prev => [...prev, { agent: agentForFlirt, text: flirts[Math.floor(Math.random() * flirts.length)], id: ++msgIdRef.current }]);
           }, 2200 + Math.random() * 1000);
         }
         // At warmth 3+: push for exclusive via archetype escalation
@@ -1226,7 +1226,7 @@ function StreamDashboard({ chosenName, track, onWin, onLose }: { chosenName: str
 
       // Clanky coaching based on count
       if (newCount === 1) setClankyMsg("good start! keep engaging — the more you chat the more they warm up 🔥");
-      if (newCount === 2) setClankyMsg("nice! bigtipper_x is watching... keep going 👀");
+      if (newCount === 2) setClankyMsg(`nice! ${EXCLUSIVE_AGENTS[track] ?? "the agent"} is watching... keep going 👀`);
     }
   };
 
