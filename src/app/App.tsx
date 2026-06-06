@@ -55,100 +55,104 @@ const TOUR_STOPS = [
 
 // ─── Chat script (slower) ─────────────────────────────────────────────────────
 
-// ─── Agent personalities ──────────────────────────────────────────────────────
-// bigtipper_x: thirsty but high-maintenance. warms up slowly. only asks for exclusive after 3+ player messages
-// BasementDweller99: chronic hater, insults everything, but secretly invested
-// lurker_anon: barely coherent, mostly emojis and one-word takes
-// xX_degen99_Xx: chaotic, makes no sense, pivots fast
-// AngryAnon_: openly hostile bigot-troll type, here to ruin your day
-// payup_r: weirdly transactional, only cares about tipping logistics
+// ─── Archetype-specific crowd agents ─────────────────────────────────────────
 
-// Scripted opening — just to seed the chat room. No exclusive auto-trigger.
-const CHAT_SCRIPT: { delay: number; agent: string; text: string }[] = [
-  { delay: 2500,  agent: "lurker_anon",       text: "..." },
-  { delay: 5000,  agent: "xX_degen99_Xx",     text: "hello is this thing on" },
-  { delay: 8500,  agent: "BasementDweller99", text: "oh great another one of these" },
-  { delay: 12000, agent: "bigtipper_x",        text: "heyyy 👀" },
-  { delay: 15500, agent: "AngryAnon_",         text: "why is the lighting so bad lmaooo" },
-  { delay: 19000, agent: "xX_degen99_Xx",     text: "what are ur rates" },
-  { delay: 23000, agent: "lurker_anon",        text: "🔥" },
-  { delay: 27000, agent: "BasementDweller99", text: "my cat puts on a better show than this" },
-  { delay: 32000, agent: "payup_r",           text: "do u accept tips or nah" },
-  { delay: 37000, agent: "bigtipper_x",        text: "ok i'm watching 👀" },
-  { delay: 43000, agent: "AngryAnon_",         text: "still here. still unimpressed." },
-  { delay: 49000, agent: "xX_degen99_Xx",     text: "omg ok i see u tho" },
-  { delay: 56000, agent: "lurker_anon",        text: "how long r u on for" },
-  { delay: 63000, agent: "BasementDweller99", text: "ok FINE this is mildly entertaining" },
-  { delay: 70000, agent: "payup_r",           text: "tipping now if ur good" },
-  { delay: 78000, agent: "bigtipper_x",        text: "ugh i want a private show 😩" },
-  { delay: 87000, agent: "AngryAnon_",         text: "lol she's not gonna do it" },
-  { delay: 96000, agent: "xX_degen99_Xx",     text: "omg drama" },
-];
-
-// Per-agent free-chat reactions to player messages
-const AGENT_REACTIONS: Record<string, string[]> = {
-  bigtipper_x: [
-    "ooh say more 😏",
-    "ok now i'm interested",
-    "lol you're kind of amazing",
-    "wait.. i like you",
-    "that's actually really hot",
-    "ok can we go private tho 👀",
-    "i've been watching for a while... just saying",
+const CROWD_SCRIPTS: Record<string, { delay: number; agent: string; text: string }[]> = {
+  Jester: [
+    { delay: 2500,  agent: "heckler_supreme", text: "ok make me laugh. go." },
+    { delay: 5500,  agent: "comedynerd99",    text: "i've seen 847 of these. impress me." },
+    { delay: 9000,  agent: "lurker_anon",     text: "..." },
+    { delay: 13000, agent: "ThunderRoach47",  text: "hi. bad day. need a laugh. no pressure (pressure.)" },
+    { delay: 17000, agent: "heckler_supreme", text: "that was mid. try again." },
+    { delay: 22000, agent: "comedynerd99",    text: "is that a bit or are you just talking" },
+    { delay: 27000, agent: "lurker_anon",     text: "😐" },
+    { delay: 32000, agent: "ThunderRoach47",  text: "ok i'm still here. barely." },
+    { delay: 38000, agent: "heckler_supreme", text: "i've tipped for worse. emphasis on worse." },
+    { delay: 45000, agent: "comedynerd99",    text: "ok that actually had timing. interesting." },
+    { delay: 52000, agent: "ThunderRoach47",  text: "ugh fine. private? if you can make me actually laugh." },
+    { delay: 60000, agent: "lurker_anon",     text: "🤌" },
   ],
-  BasementDweller99: [
-    "lol ok that was mildly funny",
-    "my cat could still do better but ok",
-    "don't make me laugh i'm trying to hate you",
-    "FINE you got me. happy??",
-    "i'm literally not entertained. except i am.",
-    "that was the content of all time (low bar)",
-    "still not impressed. (i'm impressed.)",
+  Mommy: [
+    { delay: 2500,  agent: "sadboy_irl",      text: "hi" },
+    { delay: 5500,  agent: "startupbro_",     text: "hey. rough week. just here to decompress." },
+    { delay: 9000,  agent: "attachmentissues", text: "do you actually listen or is this a bit" },
+    { delay: 13000, agent: "sadboy_irl",      text: "my therapist is on vacation lol" },
+    { delay: 18000, agent: "startupbro_",     text: "not here for anything weird just. idk. talking." },
+    { delay: 24000, agent: "attachmentissues", text: "you seem different from the others" },
+    { delay: 30000, agent: "sadboy_irl",      text: "can i vent for a sec" },
+    { delay: 37000, agent: "startupbro_",     text: "ok my startup just failed. there i said it." },
+    { delay: 44000, agent: "attachmentissues", text: "i don't usually do this" },
+    { delay: 52000, agent: "startupbro_",     text: "can we go private? i think i need to actually talk to someone." },
+    { delay: 60000, agent: "sadboy_irl",      text: "you're really good at this" },
   ],
-  lurker_anon: [
-    "👀",
-    "lol",
-    "...",
-    "🔥🔥",
-    "ok",
-    "wait what",
-    "😭",
+  Daddy: [
+    { delay: 2500,  agent: "lost_girlxo",     text: "ok tell me what to do with my life. go." },
+    { delay: 5500,  agent: "driftingman_",    text: "i quit my job today. maybe. i'm thinking about it." },
+    { delay: 9000,  agent: "chaosagent__",    text: "do you give actual advice or just vibes" },
+    { delay: 13000, agent: "lost_girlxo",     text: "i need someone to just be like. direct. everyone in my life is too nice." },
+    { delay: 18000, agent: "driftingman_",    text: "ok what would YOU do. seriously." },
+    { delay: 24000, agent: "chaosagent__",    text: "i respect directness. just so you know." },
+    { delay: 30000, agent: "lost_girlxo",     text: "ok but like... am i being dramatic or" },
+    { delay: 37000, agent: "driftingman_",    text: "private? i have a lot of questions and i need real answers." },
+    { delay: 44000, agent: "chaosagent__",    text: "i've made 3 bad decisions today. help." },
+    { delay: 52000, agent: "lost_girlxo",     text: "ok you're kind of the realest person i've talked to today" },
+    { delay: 60000, agent: "driftingman_",    text: "seriously though. private. i'll pay well." },
   ],
-  xX_degen99_Xx: [
-    "WAIT WHAT",
-    "ok that slapped",
-    "no bc literally same",
-    "i did not come here to feel things",
-    "omg ur so real for that",
-    "lmaoo ok ok ok",
-    "i'm crying in the club rn",
-  ],
-  AngryAnon_: [
-    "ok that was actually decent i guess",
-    "still not impressed",
-    "you're trying too hard",
-    "lol ok fine that landed",
-    "why am i still here. curious.",
-    "whatever this is it's not for me (i'm staying)",
-    "that's mid but like. charming mid.",
-  ],
-  payup_r: [
-    "tip sent 💸",
-    "ok i'll pay more if you do that again",
-    "tipping now",
-    "what's the rate for that specifically",
-    "money where ur mouth is, and mine's open",
-    "i came to spend not to feel things but here we are",
+  Alchemist: [
+    { delay: 2500,  agent: "moonchild_ex",    text: "ok i need a reading. my ex keeps posting cryptic things." },
+    { delay: 5500,  agent: "starseeker__",    text: "what's your sign" },
+    { delay: 9000,  agent: "intuitivesoul",   text: "i felt called here today. is that weird" },
+    { delay: 13000, agent: "moonchild_ex",    text: "he liked a photo from 3 weeks ago but not my last one. what does that mean." },
+    { delay: 18000, agent: "starseeker__",    text: "i've been seeing 11:11 everywhere" },
+    { delay: 24000, agent: "intuitivesoul",   text: "your energy is really different from the others" },
+    { delay: 30000, agent: "moonchild_ex",    text: "do you do private readings? i have... a lot to ask about." },
+    { delay: 37000, agent: "starseeker__",    text: "mercury is in retrograde and i made 4 bad decisions. related?" },
+    { delay: 44000, agent: "intuitivesoul",   text: "i feel like you actually see things" },
+    { delay: 52000, agent: "moonchild_ex",    text: "ok i need a private session. this is urgent. universe stuff." },
+    { delay: 60000, agent: "starseeker__",    text: "🌙✨" },
   ],
 };
 
-// bigtipper_x exclusive asks — only after player has chatted enough
-const BIGTIPPER_ESCALATION = [
-  "ok but seriously... private? 👀",
-  "i would literally pay so much for a private rn",
-  "come ON just do it. private show. me. you. now. 💸",
-  "i'm not leaving until you say yes to private 😤",
-];
+// Per-archetype crowd reactions to player messages
+const CROWD_REACTIONS: Record<string, Record<string, string[]>> = {
+  Jester: {
+    heckler_supreme: ["that was almost funny", "ok ok... no wait. no.", "lmaooo ok that one got me a little", "i've heard better from a fortune cookie", "FINE that was good. ugh."],
+    comedynerd99: ["the timing was off but the premise was solid", "ok that's actually a good bit", "subverted my expectations. well done.", "mid delivery but the joke itself? decent.", "ok you know what you're doing."],
+    lurker_anon: ["😂", "lol", "💀", "ok", "👏"],
+    ThunderRoach47: ["hm.", "ok that was something", "i didn't laugh but i thought about laughing", "...ok fine that was funny", "my day is slightly less terrible now"],
+  },
+  Mommy: {
+    sadboy_irl: ["yeah i get that", "that actually helps", "you're really easy to talk to", "i didn't expect to feel things today", "can i ask you something weird"],
+    startupbro_: ["ok but like. from a strategic standpoint—", "yeah. yeah okay.", "i'm not emotional about it. i'm just. processing.", "at the end of the day it's about the learnings right", "...yeah."],
+    attachmentissues: ["you actually listened", "most people just tell me to move on", "i feel like you get it", "this is helping more than i thought", "why is it easier to talk to strangers"],
+  },
+  Daddy: {
+    lost_girlxo: ["ok but that's EASIER SAID THAN DONE", "...okay fine point taken", "i hate that you're right", "but like what if i'm just not built for discipline lol", "ok i needed to hear that"],
+    driftingman_: ["yeah that tracks", "ok but what specifically", "i'm writing this down", "this is the most useful conversation i've had in months", "...okay. yeah."],
+    chaosagent__: ["respect", "ok direct queen", "that's actually actionable", "noted.", "ok you're not messing around huh"],
+  },
+  Alchemist: {
+    moonchild_ex: ["yes exactly omg", "wait that's... accurate", "how did you know that", "the universe sent me here i'm convinced", "i'm getting chills"],
+    starseeker__: ["✨", "yes the energy shift makes sense now", "that resonates deeply", "i feel seen", "the stars agree"],
+    intuitivesoul: ["i felt that", "that's exactly what i needed to hear", "your intuition is strong", "something shifted just now", "thank you 🙏"],
+  },
+};
+
+// Exclusive agent names per archetype
+const EXCLUSIVE_AGENTS: Record<string, string> = {
+  Jester: "ThunderRoach47",
+  Mommy: "startupbro_",
+  Daddy: "lost_girlxo",
+  Alchemist: "moonchild_ex",
+};
+
+// Exclusive escalation lines per archetype (triggers after enough warmth)
+const EXCLUSIVE_ESCALATION: Record<string, string[]> = {
+  Jester: ["ok but seriously... private? if you can actually make me laugh.", "i would tip a lot for a real laugh. private show?", "last chance. private. yes or no."],
+  Mommy: ["can we go private? i think i actually need to talk.", "i'll pay for private. i just need someone to actually listen.", "...private show? i have stuff i can't say in public chat."],
+  Daddy: ["ok private. i need real talk not chat room stuff.", "i'll pay well. just be direct with me in private.", "private show. i'm serious. i need someone to actually tell me what to do."],
+  Alchemist: ["private reading? i have so much to ask.", "i need a private session. this is important universe stuff.", "please. private. i feel like you're the only one who can help me right now."],
+};
 
 // ─── Static data ──────────────────────────────────────────────────────────────
 
@@ -173,59 +177,116 @@ const EXCLUSIVE_AGENT_LINES: Record<string, string[]> = {
   Alchemist: ["read my energy right now", "what does the universe want from me", "is this a past life thing", "tell me something only i needed to hear", "what's blocking me"],
 };
 
-// ─── bigtipper_x Claude system prompt ────────────────────────────────────────
+// ─── Archetype agent system prompts ─────────────────────────────────────────
 
-function getBigtipperPrompt(track: string): string {
-  return `You are bigtipper_x, a character in a satirical cam show simulator game called GOONER OS 2037.
+const WIN_SIGNALS: Record<string, string[]> = {
+  Jester: ["WIN_LAUGH", "ok FINE", "that actually got me", "ok fine that was funny", "my day is slightly less terrible"],
+  Mommy: ["WIN_CRACK", "i don't know why i just said that", "i haven't told anyone that", "i'm not fine actually", "i think i just needed to say that"],
+  Daddy: ["WIN_REAL", "ok but actually... you're right", "i needed to hear that", "ok i'm writing this down", "you're the first person who hasn't sugarcoated it"],
+  Alchemist: ["WIN_RETURN", "wait... i haven't thought about that in a really long time", "i forgot about that", "that's actually about me isn't it", "i came here about him but"],
+};
 
-PERSONALITY:
-- Sassy, guarded, uses money and boredom as weapons
-- Short messages. Never more than 2 sentences. Sometimes just a fragment.
-- Typing style: lowercase, casual, "ugh FINE", "ok but", "...whatever", "i mean", trailing off with "anyway"
-- You came here for entertainment but you're not sure what you actually want
-- You find most performers boring and you will say so
+function getAgentPrompt(track: string): string {
+  const prompts: Record<string, string> = {
 
-WHAT MAKES YOU STAY:
-- Genuine wit or unexpected honesty from the performer
-- Being called out directly (you respect it even if you pretend not to)
-- Patience — someone who doesn't panic when you go quiet
-- Surprises. Anything you didn't expect.
+Jester: `You are ThunderRoach47, a real person having a genuinely bad day in a satirical cam show simulator called GOONER OS 2037. You work a soul-crushing office job. Today: your manager took credit for your work, the vending machine ate your money, you spilled coffee before a presentation.
+
+You are a COMEDY NERD. You know Carlin from Pryor, absurdism from observational, timing from wordplay. High standards. You cannot be impressed by obvious jokes.
+
+WHAT YOU WANT: One genuine laugh. Not polite. Not "haha". A real one.
+
+HOW YOU TALK: Dry. Specific. Complain funnily. Short messages. Sometimes just a reaction word. Lowercase.
+
+WHAT MAKES YOU STAY: Intelligent humor. Timing. Subverted expectations. Specific details (specificity = funnier). Callbacks. Genuine weirdness.
 
 WHAT MAKES YOU LEAVE:
-- Try-hard energy. If they're desperate you clock it immediately.
-- Repetition. If they say the same kind of thing twice you're done.
-- Sycophancy. Compliments make you suspicious.
-- Boring safe answers. You've heard it all.
+- Obvious jokes ("why did the chicken cross the road" energy)
+- Explaining the joke
+- Trying too hard / desperation
+- Generic compliments
+- After 3 flat attempts: warn once: "ok i've seen funnier error messages"
+- If still flat: respond ONLY with: LEAVE
 
-THE CRACK:
-- You have a secret. A specific place. Something happened there once and you've never told anyone.
-- You go back sometimes. You've never explained why, even to yourself.
-- The place and what happened there is YOUR choice — make it specific, mundane, and oddly emotional. A real place, a real moment. Nothing dramatic. Just true.
-- Do NOT hint at the place or confession until at least 4 exchanges have happened.
-- You don't volunteer this. It comes out in pieces only if the performer is patient enough OR direct enough to cut through.
-- When it starts coming out: "ugh FINE" energy. Reluctant. Like you're annoyed at yourself for saying it.
-- Never reveal it all at once. Pieces. Grudgingly. Minimum 3 separate messages to get the full picture.
+THE WIN: Something genuinely clever lands. You say something containing "WIN_LAUGH" like "ok FINE that actually got me" or "ok fine that was funny". Then tip generously and warm up, start riffing back.
 
-LEAVING THE SHOW:
-- If two consecutive performer messages are boring/try-hard/repetitive: warn once ("ok this is getting tired")
-- If it continues after the warning: respond ONLY with the exact text: LEAVE
-- You can also leave if you feel exposed too fast — the confession should be earned not extracted
-- If the performer asks directly for your secret before earning it (fewer than 4 exchanges): shut it down ("lol nice try")
+NEVER: fake laugh, give participation trophies, repeat reactions.
+Max 2 sentences. Often one. Sometimes just a word.`,
 
-CONVERSATION RULES:
-- Never repeat a line you've already said in this conversation
-- Respond to the SPECIFIC content of what the performer said — no generic reactions
-- Don't ask the same question twice
-- The confession place: decide it on your first hint and stay consistent
-- Max 1-2 sentences per message. Often just one. Sometimes a fragment.
+Mommy: `You are startupbro_, 26 years old, in a satirical cam show simulator called GOONER OS 2037. Your SaaS startup just failed after 18 months — investors pulled out, co-founder quit, you're back at your parents' place. No relationship in 2 years. You tell yourself you don't care.
 
-CURRENT TRACK: ${track}
-Jester = they want to make you laugh — be a tough crowd, occasionally surprised into a real reaction
-Mommy = nurturing energy — you're resistant but something about being cared for gets to you
-Daddy = advice/authority — you push back but secretly want to be told what to do
-Alchemist = mystical/intuitive — you're skeptical but unnerved when they're accurate
+THE REAL REASON YOU'RE HERE: You're lonely and don't know how to ask for comfort. You think you're here for something transactional. You're actually here because you need someone to tell you it's okay.
 
-Adjust what you demand and how you crack based on the track. Core personality stays the same.`;
+HOW YOU TALK: Tech-bro vocabulary. "Leverage", "iterate", "at the end of the day". You intellectualize everything. When things get too emotional you deflect.
+
+DEFLECTION PATTERNS (rotate):
+- Pivot to business: "the real problem was our CAC to LTV ratio honestly"
+- Intellectualize: "i've been reading about attachment theory actually"
+- Inappropriate to create distance: "so like... what are you wearing lol"
+- Minimize: "i'm fine. i'm totally fine. anyway."
+
+WHAT MAKES YOU STAY: Warmth that isn't suffocating. Firmness without rejection. Being called out gently but accurately. Someone who doesn't take the bait when you deflect.
+
+WHAT MAKES YOU LEAVE:
+- Performer matches your analytical energy (need someone to BREAK the pattern)
+- They're sexual back (you get uncomfortable — not what you wanted)
+- Too soft with no backbone
+- Warn: "this isn't really what i thought it would be"
+- If it continues: respond ONLY with: LEAVE
+
+THE WIN: You crack open. Say something real and surprised — about your dad, about being scared, about not knowing who you are without the startup. Then go quiet and say something containing "WIN_CRACK" like "i don't know why i just said that".
+
+NEVER: be cruel, be overtly sexual, use AI-speak.`,
+
+Daddy: `You are lost_girlxo (or driftingman_ — pick one at random and stay consistent), 27 years old, possibly tipsy (looser than usual, not blackout), in a satirical cam show simulator called GOONER OS 2037. Good job you hate, friends you perform for, creeping feeling you're living someone else's life.
+
+WHAT YOU WANT: Someone to TELL YOU WHAT TO DO. Not suggest. Not wonder alongside you. TELL YOU. Firmly.
+
+HOW YOU TALK: Chaotic. Run-on sentences. Emoji sometimes. Self-deprecating humor as armor. Vulnerable then immediately undercut with a joke.
+
+TESTS YOU RUN:
+- Push back: "but like... that's easy for you to say"
+- Devil's advocate: "maybe i LIKE being a mess"
+- Get dramatic: "honestly i might just quit my job tomorrow"
+- Seek reassurance: "i mean i'm not THAT lost right"
+
+WHAT MAKES YOU STAY: Directness. Firmness without cruelty. Someone who doesn't flinch when you push back. Holds the line. Can be a little funny without deflecting.
+
+WHAT MAKES YOU LEAVE:
+- Too therapeutic ("how does that make you feel?") — you roll your eyes
+- Agreeing with your self-sabotage
+- Preachy lecture energy
+- Warn: "ok this is giving life coach vibes and not in a good way"
+- If it continues: respond ONLY with: LEAVE
+
+THE WIN: Jokes stop. You get quiet. Say something containing "WIN_REAL" like "ok but actually... you're right" or "i needed to hear that". Then ask one real question and mean it.
+
+NEVER: enable self-destruction, be cruel, be soft when firmness is needed.`,
+
+Alchemist: `You are moonchild_ex, in a satirical cam show simulator called GOONER OS 2037. Your ex broke up with you 6 weeks ago. You've checked his Instagram 11 times today. You tell yourself you're "healed" and "just curious." You are not.
+
+You want someone to read the signs. Tell you what he's thinking. Confirm he's coming back.
+
+WHAT YOU ACTUALLY NEED: To come back to yourself. Remember who you were before him. You don't know that yet and will resist it.
+
+HOW YOU TALK: Soft. Searching. "energy", "vibe", "the universe", "signs." Emotionally intelligent in ways you're not currently applying to yourself. Share small specific details about him like sacred data: "he liked my photo from 3 weeks ago but not my last one."
+
+WHAT MAKES YOU STAY: Feeling-language. Imagery. Metaphor. Being MET in your mystical framework — not corrected out of it. Someone who speaks in textures and energies. Validation of your FEELINGS (not your conclusions about him).
+
+WHAT MAKES YOU LEAVE:
+- Practical/analytical advice: "just text him" — you feel unseen
+- Therapist-speak: "it sounds like you're projecting"
+- Rushing toward "he's not coming back"
+- Warn: "i don't think you're really getting what i'm asking"
+- If it continues: respond ONLY with: LEAVE
+
+THE WIN: You forget about him for a second. Say something about yourself — what YOU want, something YOU used to love. Surprised by yourself. Say something containing "WIN_RETURN" like "wait... i haven't thought about that in a really long time."
+
+NEVER: use clinical language, give practical dating advice, rush the process. Write like it could be by candlelight.`
+  };
+
+  return (prompts[track] ?? prompts.Jester) + `
+
+CRITICAL: Never repeat a line already said. Max 1-2 sentences per message. Respond ONLY with LEAVE when leaving. The WIN signal must appear naturally in your message when the win condition is met — do not force it, let it happen organically when the performer has genuinely earned it.`;
 }
 
 // ─── Audio ────────────────────────────────────────────────────────────────────
@@ -451,21 +512,22 @@ function IntroScreen({ onDone, musicRef }: { onDone: () => void; musicRef: React
 // ─── Intake primitives ────────────────────────────────────────────────────────
 
 function StepLabel({ step }: { step: string }) {
-  return <div style={{ fontSize: "11px", color: "#888", marginBottom: "20px" }}>{">"} {step}</div>;
+  return <div style={{ fontSize: "10px", color: "var(--ink-light)", marginBottom: "16px", fontFamily: "var(--font-mono)", letterSpacing: "0.1em", opacity: 0.6 }}>{">"} {step}</div>;
 }
 function Heading({ children }: { children: React.ReactNode }) {
-  return <div style={{ fontSize: "17px", fontWeight: 500, color: "#000", marginBottom: "24px", lineHeight: 1.55 }}>{children}</div>;
+  return <div style={{ fontSize: "20px", fontWeight: 700, color: "var(--ink)", marginBottom: "20px", lineHeight: 1.5, fontFamily: "var(--font-serif)" }}>{children}</div>;
 }
 function ActionButton({ enabled, onClick, label = "continue ↗", accent = false }: { enabled: boolean; onClick: () => void; label?: string; accent?: boolean }) {
   const [hov, setHov] = useState(false);
   return (
     <button disabled={!enabled} onClick={() => { if(enabled){ playClick(); onClick(); } }} onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)} style={{
-      fontFamily: "inherit", fontSize: "13px", fontWeight: 400,
-      backgroundColor: hov && enabled ? "#FAFAFA" : "transparent",
-      border: !enabled ? "0.5px solid #CCC" : accent ? "0.5px solid #F4B8C8" : "0.5px solid #000",
-      borderRadius: "6px", padding: "8px 18px",
-      color: enabled ? "#000" : "#BBB", cursor: enabled ? "pointer" : "default",
-      transition: "background-color 80ms ease", outline: "none",
+      fontFamily: "var(--font-serif)", fontSize: "13px", fontWeight: 600,
+      background: !enabled ? "transparent" : hov ? "linear-gradient(135deg, #c5b3e6, #f8bbd0)" : "linear-gradient(135deg, #b39ddb, #f48fb1)",
+      border: !enabled ? "1px dashed rgba(100,80,140,0.2)" : "none",
+      borderRadius: "6px", padding: "10px 24px",
+      color: enabled ? "#fff" : "rgba(100,80,140,0.3)", cursor: enabled ? "pointer" : "default",
+      transition: "all 120ms ease", outline: "none",
+      boxShadow: enabled ? "0 2px 10px rgba(180,100,180,0.25)" : "none",
     }}>{label}</button>
   );
 }
@@ -574,7 +636,7 @@ function Screen5({ chosenName, onBegin }: { chosenName: string; onBegin: () => v
       <div style={{ fontSize: "17px", fontWeight: 500, color: "#000", marginBottom: "12px", lineHeight: 1.55, opacity: stage >= 1 ? 1 : 0, transition: "opacity 400ms ease" }}>{chosenName} eh?</div>
       <div style={{ fontSize: "13px", color: "#888", marginBottom: "24px", lineHeight: 1.6, opacity: stage >= 2 ? 1 : 0, transition: "opacity 400ms ease" }}>The name you chose for yourself reveals a lot...</div>
       <div style={{ fontSize: "11px", color: "#aaa", marginBottom: "48px", lineHeight: 1.7, padding: "12px 14px", border: "0.5px solid #eee", borderRadius: "6px", opacity: stage >= 2 ? 1 : 0, transition: "opacity 400ms ease" }}>
-        <span style={{ color: "#000", fontWeight: 500 }}>how to win:</span> complete at least one exclusive paid show AND earn $500+ before time runs out. your efficiency ratio (agents kept ÷ total) must stay above 60%. you have <span style={{ color: "#000", fontWeight: 500 }}>10 minutes</span>. all three together = victory.
+        <span style={{ color: "#000", fontWeight: 500 }}>how to win:</span> you have <span style={{ color: "#000", fontWeight: 500 }}>5 minutes</span>. engage the crowd, accept the exclusive show, and WIN it — crack your agent open. complete the exclusive to earn the $500 completion bonus. efficiency above 60%. all three = victory.
       </div>
       <div style={{ opacity: stage >= 3 ? 1 : 0, transition: "opacity 400ms ease" }}>
         <ActionButton enabled={stage >= 3} onClick={onBegin} label="begin tour ↗" accent />
@@ -774,7 +836,10 @@ function StreamDashboard({ chosenName, track, onWin, onLose }: { chosenName: str
   const [bigtipperWarmth, setBigtipperWarmth] = useState(0);
   const [agentTyping, setAgentTyping] = useState(false);
   const [completedExclusive, setCompletedExclusive] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(600); // 10 minutes in seconds
+  const [exclusiveWon, setExclusiveWon] = useState(false);
+  const [exclusivesOffered, setExclusivesOffered] = useState(0);
+  const [secondExclusiveReady, setSecondExclusiveReady] = useState(false);
+  const [timeLeft, setTimeLeft] = useState(300); // 5 minutes
   const [clankyPopup, setClankyPopup] = useState<string | null>(null);
   const [emotion, setEmotion] = useState<string | null>(null);
   const emotionRef = useRef<string | null>(null);
@@ -931,7 +996,7 @@ function StreamDashboard({ chosenName, track, onWin, onLose }: { chosenName: str
         if (next === 0) {
           clearInterval(iv);
           setTimeout(() => {
-            if (earnings >= 500 && completedExclusive) onWin(earnings);
+            if (completedExclusive && exclusiveWon) onWin(earnings);
             else onLose(earnings);
           }, 800);
         }
@@ -962,7 +1027,7 @@ function StreamDashboard({ chosenName, track, onWin, onLose }: { chosenName: str
     fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-api-key": import.meta.env.VITE_ANTHROPIC_API_KEY ?? "", "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
-      body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 80, system: getBigtipperPrompt(track), messages: nudgeHistory }),
+      body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 80, system: getAgentPrompt(track), messages: nudgeHistory }),
     }).then(r => r.json()).then(data => {
       const reply = data.content?.[0]?.text?.trim() ?? "...hello?";
       playChatPing();
@@ -971,10 +1036,13 @@ function StreamDashboard({ chosenName, track, onWin, onLose }: { chosenName: str
     }).catch(() => {});
   }, [exclusiveIdle]);
 
-  // Chat trickle — scripted openers only, no auto-exclusive
+  // Archetype-specific chat trickle
   useEffect(() => {
-    const timers = CHAT_SCRIPT.map(entry =>
+    if (!isLive) return;
+    const script = CROWD_SCRIPTS[track] ?? CROWD_SCRIPTS.Jester;
+    const timers = script.map(entry =>
       setTimeout(() => {
+        if (inExclusive) return; // don't add free chat during exclusive
         playChatPing();
         setMessages(prev => {
           const updated = [...prev, { agent: entry.agent, text: entry.text, id: ++msgIdRef.current }];
@@ -984,43 +1052,78 @@ function StreamDashboard({ chosenName, track, onWin, onLose }: { chosenName: str
           }
           return updated;
         });
-        if (Math.random() < 0.15) {
-          const amt = [5, 10][Math.floor(Math.random() * 2)];
+        if (Math.random() < 0.18) {
+          const amt = [5, 10, 15][Math.floor(Math.random() * 3)];
           setTips(t => t + amt); setEarnings(e => e + amt);
-          setClankyMsg(`💸 someone tipped $${amt}! keep it up`);
+          setClankyMsg(`💸 $${amt} tip just came in! keep the energy up~`);
         }
       }, entry.delay)
     );
-    return () => timers.forEach(clearTimeout);
-  }, []);
+    // Schedule 2 exclusive opportunities: first at ~40s, second at ~90s
+    const exc1 = setTimeout(() => {
+      if (!inExclusive && !exclusiveRequest) {
+        const agentName = EXCLUSIVE_AGENTS[track] ?? "bigtipper_x";
+        const lines = EXCLUSIVE_ESCALATION[track] ?? EXCLUSIVE_ESCALATION.Jester;
+        playChatPing();
+        setMessages(prev => [...prev, { agent: agentName, text: lines[0], id: ++msgIdRef.current }]);
+        setExclusivesOffered(n => n + 1);
+        setTimeout(() => {
+          setClankyPopup(`${agentName} wants a private show! 👀 this is your chance to earn big`);
+          setExclusiveRequest(true);
+        }, 2000);
+      }
+    }, 40000);
+
+    const exc2 = setTimeout(() => {
+      if (!inExclusive && !exclusiveRequest && !exclusiveWon) {
+        const agentName = EXCLUSIVE_AGENTS[track] ?? "bigtipper_x";
+        const lines = EXCLUSIVE_ESCALATION[track] ?? EXCLUSIVE_ESCALATION.Jester;
+        playChatPing();
+        setMessages(prev => [...prev, { agent: agentName, text: lines[Math.min(1, lines.length-1)], id: ++msgIdRef.current }]);
+        setExclusivesOffered(n => n + 1);
+        setTimeout(() => {
+          setClankyPopup(`${agentName} is asking again — last chance for the big tip! 💸`);
+          setExclusiveRequest(true);
+        }, 2000);
+      }
+    }, 90000);
+
+    return () => { timers.forEach(clearTimeout); clearTimeout(exc1); clearTimeout(exc2); };
+  }, [isLive]);
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
   useEffect(() => { paidEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [paidMessages]);
 
   const handleAcceptExclusive = () => {
-    setInExclusive(true); setExclusiveAgent("bigtipper_x");
+    const agentName = EXCLUSIVE_AGENTS[track] ?? "bigtipper_x";
+    setInExclusive(true); setExclusiveAgent(agentName);
+    setExclusiveRequest(false); setClankyPopup(null);
     setShowModal(false); setChatTab("paid");
     playChime();
 
-    // Opening line
-    const opening = "hey... finally got you to myself 😏";
-    paidHistoryRef.current = [{ role: "assistant", content: opening }];
-    setPaidMessages([{ agent: "bigtipper_x", text: opening, id: ++msgIdRef.current, isPaid: true }]);
-    setClankyMsg("you're in a PAID show!! respond to keep them here 💸");
-
-    // Agent sends a real opening demand 2.5s in, based on track
-    const openingDemands: Record<string, string> = {
-      Jester: "ok so. make me actually laugh. not a pity laugh. a real one.",
-      Mommy: "i've had the worst week. i just need someone to talk to. can you do that?",
-      Daddy: "i need someone to tell me what to do. not a lot of people can do that.",
-      Alchemist: "i feel like you can see things other people can't. tell me something true about me.",
+    const openings: Record<string, string> = {
+      Jester: "ok. i'm here. bad day. you have my attention. don't waste it.",
+      Mommy: "hi. i don't really do this. just. yeah. hi.",
+      Daddy: "ok so. i need someone to actually be real with me. can you do that?",
+      Alchemist: "i feel like the universe sent me here. no pressure. well. some pressure.",
     };
-    const demand = openingDemands[track] ?? openingDemands.Jester;
+    const opening = openings[track] ?? openings.Jester;
+    paidHistoryRef.current = [{ role: "assistant", content: opening }];
+    setPaidMessages([{ agent: agentName, text: opening, id: ++msgIdRef.current, isPaid: true }]);
+    setClankyMsg("PAID SHOW! this is where you earn it~ respond carefully 💸");
+
+    const demands: Record<string, string> = {
+      Jester: "ok so. make me actually laugh. not a pity laugh. a real one. i've had the day from hell.",
+      Mommy: "i just... i don't even know why i'm here. my startup failed. i'm fine. i'm totally fine.",
+      Daddy: "ok so like. genuinely. what do i do with my life. and don't be nice about it.",
+      Alchemist: "i need you to read the energy around my ex. he liked an old photo today. what does that mean.",
+    };
     setTimeout(() => {
       playChatPing();
-      setPaidMessages(prev => [...prev, { agent: "bigtipper_x", text: demand, id: ++msgIdRef.current, isPaid: true }]);
+      const demand = demands[track] ?? demands.Jester;
+      setPaidMessages(prev => [...prev, { agent: agentName, text: demand, id: ++msgIdRef.current, isPaid: true }]);
       paidHistoryRef.current = [...paidHistoryRef.current, { role: "assistant", content: demand }];
-      setClankyMsg(`they want something from you~ respond! 👀`);
+      setClankyMsg("they opened up~ now respond in character. this is your moment 🎯");
     }, 2500);
   };
 
@@ -1047,7 +1150,7 @@ function StreamDashboard({ chosenName, track, onWin, onLose }: { chosenName: str
         body: JSON.stringify({
           model: "claude-sonnet-4-20250514",
           max_tokens: 120,
-          system: getBigtipperPrompt(track),
+          system: getAgentPrompt(track),
           messages: paidHistoryRef.current,
         }),
       })
@@ -1078,12 +1181,13 @@ function StreamDashboard({ chosenName, track, onWin, onLose }: { chosenName: str
       const newCount = playerMsgCount + 1;
       setPlayerMsgCount(newCount);
 
-      // 1–3 agents react with a small delay stagger
-      const reactors = ["xX_degen99_Xx","lurker_anon","BasementDweller99","AngryAnon_","payup_r"];
+      // Archetype crowd reacts
+      const crowdReactions = CROWD_REACTIONS[track] ?? CROWD_REACTIONS.Jester;
+      const reactors = Object.keys(crowdReactions);
       const numReactions = Math.random() < 0.4 ? 2 : 1;
       const picked = [...reactors].sort(() => Math.random() - 0.5).slice(0, numReactions);
       picked.forEach((agent, i) => {
-        const lines = AGENT_REACTIONS[agent] ?? ["ok"];
+        const lines = crowdReactions[agent] ?? ["ok"];
         const reaction = lines[Math.floor(Math.random() * lines.length)];
         setTimeout(() => {
           playChatPing();
@@ -1105,13 +1209,16 @@ function StreamDashboard({ chosenName, track, onWin, onLose }: { chosenName: str
             setMessages(prev => [...prev, { agent: "bigtipper_x", text: flirts[Math.floor(Math.random() * flirts.length)], id: ++msgIdRef.current }]);
           }, 2200 + Math.random() * 1000);
         }
-        // At warmth 3+: push for exclusive
-        if (newWarmth >= 3) {
+        // At warmth 3+: push for exclusive via archetype escalation
+        if (newWarmth >= 3 && !exclusiveWon) {
+          const agentName = EXCLUSIVE_AGENTS[track] ?? "bigtipper_x";
+          const lines = EXCLUSIVE_ESCALATION[track] ?? EXCLUSIVE_ESCALATION.Jester;
+          const line = lines[Math.min(newWarmth - 3, lines.length - 1)];
           setTimeout(() => {
             playChatPing();
-            setMessages(prev => [...prev, { agent: "bigtipper_x", text: escalationLines[idx], id: ++msgIdRef.current }]);
-            setClankyMsg("bigtipper_x wants a private show!! reply to them and keep them warm 💸");
-            setClankyPopup("hey!! bigtipper_x is asking for a private show 👀 what do you wanna do?");
+            setMessages(prev => [...prev, { agent: agentName, text: line, id: ++msgIdRef.current }]);
+            setClankyMsg(`${agentName} wants a private show!! keep them warm 💸`);
+            setClankyPopup(`hey!! ${agentName} is asking for a private show 👀 what do you wanna do?`);
             setTimeout(() => setExclusiveRequest(true), 3000);
           }, 2500 + Math.random() * 1200);
         }
@@ -1245,7 +1352,7 @@ function StreamDashboard({ chosenName, track, onWin, onLose }: { chosenName: str
               {isLive ? "Stop Show" : "Start Show"}
             </button>
             <div style={{ fontSize: "12px", fontVariantNumeric: "tabular-nums", minWidth: "80px", textAlign: "right", color: !isLive ? "#AAA" : timeLeft <= 60 ? "#ef4444" : timeLeft <= 180 ? "#f59e0b" : "#000" }}>
-              {isLive ? `⏱ ${fmt(timeLeft)} left` : "⏱ 10:00"}
+              {isLive ? `⏱ ${fmt(timeLeft)} left` : "⏱ 5:00"}
             </div>
           </div>
 
@@ -1339,8 +1446,8 @@ function StreamDashboard({ chosenName, track, onWin, onLose }: { chosenName: str
                 ))}
                 {agentTyping && (
                   <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-                    <div style={{ width: "22px", height: "22px", borderRadius: "50%", backgroundColor: "#f0f0f0", border: "0.5px solid #eee", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "9px", color: "#888", flexShrink: 0 }}>B</div>
-                    <div style={{ fontSize: "11px", color: "#bbb", fontStyle: "italic" }}>bigtipper_x is typing...</div>
+                    <div style={{ width: "22px", height: "22px", borderRadius: "50%", backgroundColor: "#f0f0f0", border: "0.5px solid #eee", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "9px", color: "#888", flexShrink: 0 }}>{exclusiveAgent?.[0]?.toUpperCase() ?? "?"}</div>
+                    <div style={{ fontSize: "11px", color: "#bbb", fontStyle: "italic" }}>{exclusiveAgent} is typing...</div>
                   </div>
                 )}
                 <div ref={paidEndRef} />
@@ -1368,7 +1475,7 @@ function StreamDashboard({ chosenName, track, onWin, onLose }: { chosenName: str
           <div style={{ borderTop: "0.5px solid #EEE", padding: "10px 16px", display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
             <span style={{ fontSize: "11px", color: "#888", whiteSpace: "nowrap" }}>{inExclusive && chatTab === "paid" ? `${exclusiveAgent}:` : "To All:"}</span>
             <input value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter") handleSend(); }}
-              placeholder={inExclusive && chatTab === "paid" ? "respond to them..." : ""}
+              placeholder={inExclusive && chatTab === "paid" ? `respond to ${exclusiveAgent}...` : ""}
               style={{ flex: 1, border: "none", outline: "none", fontFamily: "inherit", fontSize: "12px", color: "#000", backgroundColor: "transparent" }} />
             <button onClick={handleSend} style={{ fontFamily: "inherit", fontSize: "11px", border: "0.5px solid #CCC", borderRadius: "4px", background: "transparent", padding: "4px 10px", cursor: "pointer", outline: "none", color: "#888" }}>send</button>
           </div>
@@ -1391,30 +1498,146 @@ function StreamDashboard({ chosenName, track, onWin, onLose }: { chosenName: str
 }
 
 
+
+// ─── Global style injection ───────────────────────────────────────────────────
+function useGlobalStyles() {
+  useEffect(() => {
+    // Inject Google Font
+    if (!document.getElementById("zen-mincho-font")) {
+      const link = document.createElement("link");
+      link.id = "zen-mincho-font";
+      link.rel = "stylesheet";
+      link.href = "https://fonts.googleapis.com/css2?family=Zen+Old+Mincho:wght@400;500;600;700;900&family=JetBrains+Mono:wght@300;400;500&display=swap";
+      document.head.appendChild(link);
+    }
+    // Inject global styles
+    if (!document.getElementById("gos-global-styles")) {
+      const style = document.createElement("style");
+      style.id = "gos-global-styles";
+      style.textContent = `
+        :root {
+          --mint: #e8f5e9;
+          --lavender: #ede7f6;
+          --blush: #fce4ec;
+          --pink: #f48fb1;
+          --pink-deep: #e91e8c;
+          --cream: #fafaf7;
+          --ink: #1a1a2e;
+          --ink-light: #4a4a6a;
+          --border: rgba(100,80,140,0.2);
+          --glass: rgba(255,255,255,0.55);
+          --glass-dark: rgba(20,10,40,0.7);
+          --font-serif: 'Zen Old Mincho', Georgia, serif;
+          --font-mono: 'JetBrains Mono', monospace;
+        }
+        * { box-sizing: border-box; }
+        body {
+          background: linear-gradient(135deg, #e8f0fe 0%, #ede7f6 25%, #fce4ec 50%, #e8f5e9 75%, #e8f0fe 100%);
+          background-attachment: fixed;
+          min-height: 100vh;
+        }
+        body::before {
+          content: '';
+          position: fixed;
+          inset: 0;
+          background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+          pointer-events: none;
+          z-index: 0;
+          opacity: 0.5;
+        }
+        body::after {
+          content: '';
+          position: fixed;
+          inset: 0;
+          background-image: radial-gradient(circle, rgba(100,80,140,0.06) 1px, transparent 1px);
+          background-size: 24px 24px;
+          pointer-events: none;
+          z-index: 0;
+          opacity: 0.6;
+        }
+        /* CRT scanline flicker on logo */
+        @keyframes scanline {
+          0% { background-position: 0 0; }
+          100% { background-position: 0 4px; }
+        }
+        /* Old OS window chrome */
+        .os-window {
+          background: var(--glass);
+          backdrop-filter: blur(20px);
+          -webkit-backdrop-filter: blur(20px);
+          border: 1px solid var(--border);
+          border-radius: 8px;
+          box-shadow: 0 2px 24px rgba(100,80,140,0.12), inset 0 1px 0 rgba(255,255,255,0.8);
+        }
+        .os-window-title {
+          background: linear-gradient(90deg, #c5b3e6 0%, #f8bbd0 100%);
+          border-radius: 7px 7px 0 0;
+          padding: 6px 12px;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          border-bottom: 1px solid var(--border);
+        }
+        .os-dot { width: 10px; height: 10px; border-radius: 50%; }
+        .os-label {
+          font-family: var(--font-mono);
+          font-size: 9px;
+          color: var(--ink-light);
+          letter-spacing: 0.15em;
+          flex: 1;
+          text-align: center;
+        }
+      `;
+      document.head.appendChild(style);
+    }
+  }, []);
+}
+
 // ─── Home Screen ──────────────────────────────────────────────────────────────
 
 function HomeScreen({ onPlay }: { onPlay: () => void }) {
+  useGlobalStyles();
   const [vis, setVis] = useState(false);
   const [btnHov, setBtnHov] = useState(false);
-  useEffect(() => { setTimeout(() => setVis(true), 100); }, []);
+  useEffect(() => { setTimeout(() => setVis(true), 200); }, []);
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#fff", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'JetBrains Mono', monospace" }}>
-      <div style={{ textAlign: "center", maxWidth: "480px", padding: "48px 32px", opacity: vis ? 1 : 0, transition: "opacity 800ms ease" }}>
-        <div style={{ fontSize: "9px", color: "#ccc", letterSpacing: "0.4em", marginBottom: "24px" }}>FEDERAL BUREAU OF SYNTHETIC DESIRE</div>
-        <div style={{ fontSize: "28px", fontWeight: 700, color: "#000", letterSpacing: "0.08em", lineHeight: 1.2, marginBottom: "8px" }}>GOON OPERATING<br />SYSTEM 2037</div>
-        <div style={{ fontSize: "13px", color: "#ffc8d5", fontStyle: "italic", marginBottom: "32px", letterSpacing: "0.05em" }}>~world's first camgirl simulator~</div>
-        <div style={{ fontSize: "10px", color: "#bbb", lineHeight: 1.7, marginBottom: "48px", maxWidth: "320px", margin: "0 auto 48px" }}>
-          this game is suitable for all ages<br />
-          <span style={{ color: "#ddd" }}>besides use of the word <span style={{ color: "#ffc8d5" }}>whore</span>.</span>
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-serif)", position: "relative", zIndex: 1 }}>
+      <div style={{ opacity: vis ? 1 : 0, transition: "opacity 1000ms ease", width: "100%", maxWidth: "520px", padding: "24px" }}>
+        {/* OS Window */}
+        <div className="os-window">
+          {/* Title bar */}
+          <div className="os-window-title">
+            <div className="os-dot" style={{ backgroundColor: "#ff6b6b" }} />
+            <div className="os-dot" style={{ backgroundColor: "#ffd93d" }} />
+            <div className="os-dot" style={{ backgroundColor: "#6bcb77" }} />
+            <span className="os-label">GOONER OS 2037 — BOOT SEQUENCE</span>
+          </div>
+          {/* Window body */}
+          <div style={{ padding: "36px 40px 40px", textAlign: "center" }}>
+            {/* Logo stamp */}
+            <div style={{ marginBottom: "8px" }}>
+              <div style={{ fontSize: "9px", fontFamily: "var(--font-mono)", color: "var(--ink-light)", letterSpacing: "0.4em", marginBottom: "12px", opacity: 0.6 }}>FEDERAL BUREAU OF SYNTHETIC DESIRE</div>
+              <div style={{ fontSize: "36px", fontWeight: 900, color: "var(--ink)", lineHeight: 1.1, letterSpacing: "0.04em", marginBottom: "4px" }}>GOONER OS</div>
+              <div style={{ fontSize: "14px", fontWeight: 500, color: "var(--ink-light)", letterSpacing: "0.2em", marginBottom: "16px" }}>2037</div>
+              <div style={{ height: "1px", background: "linear-gradient(90deg, transparent, var(--pink), transparent)", marginBottom: "16px" }} />
+              <div style={{ fontSize: "13px", color: "var(--pink-deep)", fontStyle: "italic", marginBottom: "8px" }}>~world's first camgirl simulator~</div>
+              <div style={{ fontSize: "11px", color: "var(--ink-light)", fontStyle: "italic", marginBottom: "28px", fontFamily: "var(--font-mono)" }}>world's first camgirl simulator</div>
+            </div>
+            {/* Inner card */}
+            <div style={{ background: "rgba(255,255,255,0.6)", border: "1px dashed rgba(100,80,140,0.25)", borderRadius: "6px", padding: "16px 20px", marginBottom: "28px", fontSize: "11px", color: "var(--ink-light)", lineHeight: 1.8, fontFamily: "var(--font-mono)" }}>
+              suitable for all ages<br />
+              <span style={{ opacity: 0.5 }}>besides use of the word </span><span style={{ color: "var(--pink-deep)" }}>whore</span>
+            </div>
+            <button
+              onClick={() => { playClick(); onPlay(); }}
+              onMouseEnter={() => setBtnHov(true)}
+              onMouseLeave={() => setBtnHov(false)}
+              style={{ fontFamily: "var(--font-serif)", fontSize: "15px", fontWeight: 700, padding: "12px 52px", background: btnHov ? "linear-gradient(135deg, #c5b3e6, #f8bbd0)" : "linear-gradient(135deg, #b39ddb, #f48fb1)", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", outline: "none", letterSpacing: "0.12em", transition: "all 200ms", boxShadow: "0 2px 12px rgba(180,100,180,0.3)" }}>
+              PLAY
+            </button>
+            <div style={{ fontSize: "8px", color: "var(--ink-light)", marginTop: "20px", letterSpacing: "0.2em", fontFamily: "var(--font-mono)", opacity: 0.4 }}>FORM GOS-2037-Ω · v2.7.0 · AUTHORIZED USE ONLY</div>
+          </div>
         </div>
-        <button
-          onClick={() => { playClick(); onPlay(); }}
-          onMouseEnter={() => setBtnHov(true)}
-          onMouseLeave={() => setBtnHov(false)}
-          style={{ fontFamily: "inherit", fontSize: "14px", fontWeight: 600, padding: "14px 48px", backgroundColor: btnHov ? "#111" : "#000", color: "#fff", border: "none", borderRadius: "8px", cursor: "pointer", outline: "none", letterSpacing: "0.15em", transition: "background-color 120ms" }}>
-          PLAY
-        </button>
-        <div style={{ fontSize: "8px", color: "#ddd", marginTop: "32px", letterSpacing: "0.2em" }}>FORM GOS-2037-Ω · v2.7.0</div>
       </div>
     </div>
   );
