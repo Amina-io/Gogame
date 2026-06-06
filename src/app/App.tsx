@@ -842,6 +842,8 @@ function StreamDashboard({ chosenName, track, onWin, onLose }: { chosenName: str
   const [timeLeft, setTimeLeft] = useState(300); // 5 minutes
   const [clankyPopup, setClankyPopup] = useState<string | null>(null);
   const [emotion, setEmotion] = useState<string | null>(null);
+  const [moodScore, setMoodScore] = useState<number>(0); // 0-100
+  const [moodAlert, setMoodAlert] = useState<string | null>(null);
   const emotionRef = useRef<string | null>(null);
   const faceApiLoadedRef = useRef(false);
   const paidHistoryRef = useRef<{role: "user"|"assistant", content: string}[]>([]);
@@ -925,18 +927,24 @@ function StreamDashboard({ chosenName, track, onWin, onLose }: { chosenName: str
             .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions())
             .withFaceExpressions();
           if (result) {
-            const expressions = result.expressions;
-            const top = Object.entries(expressions as Record<string, number>)
-              .sort(([,a],[,b]) => b - a)[0];
+            const expressions = result.expressions as Record<string, number>;
+            const top = Object.entries(expressions).sort(([,a],[,b]) => b - a)[0];
             const [name, score] = top;
-            if ((score as number) > 0.4) {
+            if ((score as number) > 0.3) {
               emotionRef.current = name;
               setEmotion(name);
-              // Clanky reacts to emotion
-              if (name === "sad" && (score as number) > 0.5) setClankyMsg("you look sad~ smile for the camera! 😊 agents tip more when you're happy");
-              if (name === "angry" && (score as number) > 0.5) setClankyMsg("that intensity is interesting... channel it 🔥");
-              if (name === "happy" && (score as number) > 0.6) setClankyMsg("yes!! that energy is working~ keep it up 💸");
-              if (name === "surprised" && (score as number) > 0.5) setClankyMsg("they love that reaction!! 👀");
+              // Calculate mood score: happy=100, surprised=80, neutral=50, sad=20, angry=10, fearful=15
+              const moodMap: Record<string, number> = { happy: 100, surprised: 80, neutral: 50, disgusted: 30, fearful: 20, sad: 15, angry: 10 };
+              const rawScore = moodMap[name] ?? 50;
+              // Blend with happy score for smoother reading
+              const happyScore = (expressions["happy"] ?? 0) * 100;
+              const blended = Math.round(rawScore * 0.6 + happyScore * 0.4);
+              setMoodScore(blended);
+              // Mood alerts
+              if (blended < 30) setMoodAlert("TRY SMILING MORE!");
+              else if (blended < 50) setMoodAlert("energy feels low~");
+              else if (blended >= 80) setMoodAlert("perfect energy! 💸");
+              else setMoodAlert(null);
             }
           }
         } catch (_) {}
@@ -1263,7 +1271,7 @@ function StreamDashboard({ chosenName, track, onWin, onLose }: { chosenName: str
         <div style={{ backgroundColor: "#0a0a0a", borderBottom: "0.5px solid #ffc8d5", padding: "8px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
           <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
             <div style={{ width: "7px", height: "7px", borderRadius: "50%", backgroundColor: "#ffc8d5", animation: "pulse 1s infinite" }} />
-            <span style={{ fontSize: "11px", color: "#ffc8d5", letterSpacing: "0.06em" }}>EXCLUSIVE SHOW — {exclusiveAgent}</span>
+            <span style={{ fontSize: "11px", color: "#ffc8d5", letterSpacing: "0.06em" }}>● EXCLUSIVE SHOW</span>
             <span style={{ fontSize: "11px", color: "#666" }}>{fmt(exclusiveTimer)} · +${(exclusiveTimer * rate / 60).toFixed(2)}</span>
           </div>
           <button onClick={handleEndExclusive} style={{ fontFamily: "inherit", fontSize: "10px", background: "transparent", border: "0.5px solid #444", borderRadius: "4px", color: "#666", padding: "4px 10px", cursor: "pointer" }}>end exclusive</button>
@@ -1319,18 +1327,23 @@ function StreamDashboard({ chosenName, track, onWin, onLose }: { chosenName: str
       {/* Main */}
       <div style={{ flex: 1, display: "flex", overflow: "hidden" }}>
         {/* Left */}
-        <div style={{ width: "55%", display: "flex", flexDirection: "column", borderRight: "0.5px solid #CCC" }}>
+        <div style={{ width: "55%", display: "flex", flexDirection: "column", borderRight: "0.5px solid #CCC", position: "relative" }}>
           {/* Camera — no username overlay */}
-          <div ref={cameraRef} style={{ ...hl("camera"), flex: 1, backgroundColor: "#111", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "260px", margin: "12px 12px 0 12px", borderRadius: "6px", overflow: "hidden", position: "relative" }}>
+          <div ref={cameraRef} style={{ ...hl("camera"), flex: 1, backgroundColor: "#111", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "260px", margin: "12px 12px 0 12px", borderRadius: "6px", overflow: "hidden", position: "relative", zIndex: 1 }}>
             <div style={{ fontSize: "9px", color: isLive ? "#ef4444" : "#666", letterSpacing: "0.1em", position: "absolute", top: "12px", left: "12px", display: "flex", gap: "6px", alignItems: "center" }}>
               {isLive && <div style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#ef4444", animation: "pulse 2s infinite" }} />}
               {isLive ? "LIVE" : "● OFFLINE"}
             </div>
-            {/* Emotion indicator */}
-            {isLive && emotion && (
-              <div style={{ position: "absolute", top: "10px", left: "10px", zIndex: 10, backgroundColor: "rgba(0,0,0,0.6)", backdropFilter: "blur(8px)", borderRadius: "6px", padding: "4px 8px", fontSize: "10px", color: "#ffc8d5", letterSpacing: "0.05em" }}>
-                {emotion === "happy" ? "😊 happy" : emotion === "sad" ? "😢 sad" : emotion === "angry" ? "😠 angry" : emotion === "surprised" ? "😲 surprised" : emotion === "neutral" ? "😐 neutral" : `✨ ${emotion}`}
-              </div>
+            {/* Corner scan lines — biometric feel */}
+            {isLive && (
+              <>
+                <div style={{ position: "absolute", top: "8px", left: "8px", width: "20px", height: "20px", borderTop: "2px solid #ffc8d5", borderLeft: "2px solid #ffc8d5", opacity: 0.6, zIndex: 10 }} />
+                <div style={{ position: "absolute", top: "8px", right: "8px", width: "20px", height: "20px", borderTop: "2px solid #ffc8d5", borderRight: "2px solid #ffc8d5", opacity: 0.6, zIndex: 10 }} />
+                <div style={{ position: "absolute", bottom: "8px", left: "8px", width: "20px", height: "20px", borderBottom: "2px solid #ffc8d5", borderLeft: "2px solid #ffc8d5", opacity: 0.6, zIndex: 10 }} />
+                <div style={{ position: "absolute", bottom: "8px", right: "8px", width: "20px", height: "20px", borderBottom: "2px solid #ffc8d5", borderRight: "2px solid #ffc8d5", opacity: 0.6, zIndex: 10 }} />
+                {/* Scan line animation */}
+                <div style={{ position: "absolute", left: 0, right: 0, height: "1px", backgroundColor: "rgba(255,200,213,0.3)", zIndex: 10, animation: "scanDown 3s linear infinite", top: 0 }} />
+              </>
             )}
             {/* Video always mounted so ref is always attached */}
             <video ref={videoRef} autoPlay playsInline muted style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", transform: "scaleX(-1)", display: isLive ? "block" : "none" }} />
@@ -1346,13 +1359,37 @@ function StreamDashboard({ chosenName, track, onWin, onLose }: { chosenName: str
             )}
           </div>
 
+          {/* Mood Meter — below camera, horizontal layout */}
+          {isLive && (
+            <div style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: "8px", margin: "8px 12px 0", padding: "8px 12px", backgroundColor: "rgba(0,0,0,0.04)", borderRadius: "6px", border: "0.5px solid #eee" }}>
+              {/* Label */}
+              <div style={{ fontSize: "8px", color: "#aaa", letterSpacing: "0.12em", fontFamily: "monospace", whiteSpace: "nowrap" }}>MOOD</div>
+              {/* Horizontal bar */}
+              <div style={{ flex: 1, height: "8px", backgroundColor: "#f0f0f0", borderRadius: "4px", overflow: "hidden", position: "relative" }}>
+                <div style={{
+                  position: "absolute", left: 0, top: 0, bottom: 0,
+                  width: `${moodScore}%`,
+                  background: moodScore >= 70 ? "linear-gradient(to right, #22c55e, #86efac)" : moodScore >= 40 ? "linear-gradient(to right, #f59e0b, #fcd34d)" : "linear-gradient(to right, #ef4444, #fca5a5)",
+                  transition: "width 800ms ease, background 800ms ease",
+                  borderRadius: "4px",
+                }} />
+              </div>
+              {/* Score */}
+              <div style={{ fontSize: "10px", fontWeight: 700, color: moodScore >= 70 ? "#22c55e" : moodScore >= 40 ? "#f59e0b" : "#ef4444", fontFamily: "monospace", minWidth: "28px" }}>{moodScore}</div>
+              {/* Emotion */}
+              {emotion && <div style={{ fontSize: "9px", color: "#888", fontFamily: "monospace" }}>{emotion === "happy" ? "😊" : emotion === "sad" ? "😢" : emotion === "angry" ? "😠" : emotion === "surprised" ? "😲" : emotion === "neutral" ? "😐" : emotion === "fearful" ? "😰" : "✨"} {emotion}</div>}
+              {/* Alert */}
+              {moodAlert && <div style={{ fontSize: "8px", color: moodAlert.includes("SMILING") ? "#ef4444" : "#ffc8d5", fontFamily: "monospace", animation: moodAlert.includes("SMILING") ? "moodPulse 1.5s ease-in-out infinite" : "none", whiteSpace: "nowrap" }}>{moodAlert}</div>}
+            </div>
+          )}
+
           {/* Start Show */}
           <div style={{ padding: "10px 12px 0 12px", display: "flex", alignItems: "center", gap: "10px" }}>
             <button onClick={() => { playClick(); setIsLive(v => !v); }} style={{ flex: 1, fontFamily: "inherit", fontSize: "12px", fontWeight: 500, padding: "9px 0", backgroundColor: isLive ? "#000" : "transparent", color: isLive ? "#FFF" : "#22c55e", border: isLive ? "0.5px solid #CCC" : "0.5px solid #22c55e", borderRadius: "6px", cursor: "pointer", outline: "none", transition: "background-color 120ms", animation: isLive ? "none" : "startBlink 1.2s ease-in-out infinite" }}>
               {isLive ? "Stop Show" : "Start Show"}
             </button>
             <div style={{ fontSize: "12px", fontVariantNumeric: "tabular-nums", minWidth: "80px", textAlign: "right", color: !isLive ? "#AAA" : timeLeft <= 60 ? "#ef4444" : timeLeft <= 180 ? "#f59e0b" : "#000" }}>
-              {isLive ? `⏱ ${fmt(timeLeft)} left` : "⏱ 5:00"}
+              {isLive ? `⏱ ${fmt(timeLeft)} left` : "⏱ 05:00"}
             </div>
           </div>
 
@@ -1401,7 +1438,7 @@ function StreamDashboard({ chosenName, track, onWin, onLose }: { chosenName: str
         {/* Right — chat */}
         <div ref={chatRef} style={{ ...hl("chat"), width: "45%", display: "flex", flexDirection: "column" }}>
           <div style={{ padding: "8px 16px", borderBottom: "0.5px solid #EEE", display: "flex", alignItems: "center", justifyContent: "space-between", flexShrink: 0 }}>
-            <span style={{ fontSize: "10px", color: inExclusive ? "#ffc8d5" : "#888" }}>{inExclusive ? `Exclusive — ${exclusiveAgent}` : "Free Chat"}</span>
+            <span style={{ fontSize: "10px", color: inExclusive ? "#ffc8d5" : "#888" }}>{inExclusive ? "Exclusive Show" : "Free Chat"}</span>
             <span style={{ fontSize: "10px", color: "#AAA" }}>{new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}</span>
           </div>
 
@@ -1492,6 +1529,8 @@ function StreamDashboard({ chosenName, track, onWin, onLose }: { chosenName: str
         @keyframes paidPulse { 0%,100%{opacity:1} 50%{opacity:0.45} }
         @keyframes clankyPulse { 0%,100%{box-shadow:0 0 18px rgba(255,200,213,0.45),inset 0 0 12px rgba(255,200,213,0.06)} 50%{box-shadow:0 0 32px rgba(255,200,213,0.8),inset 0 0 18px rgba(255,200,213,0.12)} }
         @keyframes startBlink { 0%,100%{opacity:1;box-shadow:0 0 0px #22c55e} 50%{opacity:0.7;box-shadow:0 0 12px #22c55e} }
+        @keyframes scanDown { 0%{top:0%} 100%{top:100%} }
+        @keyframes moodPulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
       `}</style>
     </div>
   );
@@ -1531,8 +1570,15 @@ function useGlobalStyles() {
           --font-mono: 'JetBrains Mono', monospace;
         }
         * { box-sizing: border-box; }
+        @keyframes bgShift {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
         body {
-          background: linear-gradient(135deg, #e8f0fe 0%, #ede7f6 25%, #fce4ec 50%, #e8f5e9 75%, #e8f0fe 100%);
+          background: linear-gradient(135deg, #dbeafe 0%, #e0f2fe 20%, #ede9fe 40%, #fce7f3 60%, #e0f2fe 80%, #dbeafe 100%);
+          background-size: 300% 300%;
+          animation: bgShift 12s ease infinite;
           background-attachment: fixed;
           min-height: 100vh;
         }
@@ -1554,6 +1600,19 @@ function useGlobalStyles() {
           pointer-events: none;
           z-index: 0;
           opacity: 0.6;
+        }
+        @keyframes rainbow {
+          0%   { background-position: 0% 50%; }
+          100% { background-position: 200% 50%; }
+        }
+        .rainbow-text {
+          background: linear-gradient(90deg, #ff6b6b, #ffd93d, #6bcb77, #4d96ff, #c77dff, #ff6b6b);
+          background-size: 200% auto;
+          -webkit-background-clip: text;
+          -webkit-text-fill-color: transparent;
+          background-clip: text;
+          animation: rainbow 3s linear infinite;
+          font-style: italic;
         }
         /* CRT scanline flicker on logo */
         @keyframes scanline {
@@ -1599,37 +1658,37 @@ function HomeScreen({ onPlay }: { onPlay: () => void }) {
   useGlobalStyles();
   const [vis, setVis] = useState(false);
   const [btnHov, setBtnHov] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   useEffect(() => { setTimeout(() => setVis(true), 200); }, []);
+
+  const handlePlay = () => {
+    playClick();
+    setLeaving(true);
+    setTimeout(onPlay, 900);
+  };
+
   return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-serif)", position: "relative", zIndex: 1 }}>
-      <div style={{ opacity: vis ? 1 : 0, transition: "opacity 1000ms ease", width: "100%", maxWidth: "520px", padding: "24px" }}>
-        {/* OS Window */}
+    <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", fontFamily: "var(--font-serif)", position: "relative", zIndex: 1, padding: "24px" }}>
+      <div style={{ opacity: leaving ? 0 : vis ? 1 : 0, transition: leaving ? "opacity 900ms ease" : "opacity 1000ms ease", width: "100%", maxWidth: "520px" }}>
         <div className="os-window">
-          {/* Title bar */}
           <div className="os-window-title">
             <div className="os-dot" style={{ backgroundColor: "#ff6b6b" }} />
             <div className="os-dot" style={{ backgroundColor: "#ffd93d" }} />
             <div className="os-dot" style={{ backgroundColor: "#6bcb77" }} />
             <span className="os-label">GOONER OS 2037 — BOOT SEQUENCE</span>
           </div>
-          {/* Window body */}
           <div style={{ padding: "36px 40px 40px", textAlign: "center" }}>
-            {/* Logo stamp */}
-            <div style={{ marginBottom: "8px" }}>
-              <div style={{ fontSize: "9px", fontFamily: "var(--font-mono)", color: "var(--ink-light)", letterSpacing: "0.4em", marginBottom: "12px", opacity: 0.6 }}>FEDERAL BUREAU OF SYNTHETIC DESIRE</div>
-              <div style={{ fontSize: "36px", fontWeight: 900, color: "var(--ink)", lineHeight: 1.1, letterSpacing: "0.04em", marginBottom: "4px" }}>GOONER OS</div>
-              <div style={{ fontSize: "14px", fontWeight: 500, color: "var(--ink-light)", letterSpacing: "0.2em", marginBottom: "16px" }}>2037</div>
-              <div style={{ height: "1px", background: "linear-gradient(90deg, transparent, var(--pink), transparent)", marginBottom: "16px" }} />
-              <div style={{ fontSize: "13px", color: "var(--pink-deep)", fontStyle: "italic", marginBottom: "8px" }}>~world's first camgirl simulator~</div>
-              <div style={{ fontSize: "11px", color: "var(--ink-light)", fontStyle: "italic", marginBottom: "28px", fontFamily: "var(--font-mono)" }}>world's first camgirl simulator</div>
-            </div>
-            {/* Inner card */}
+            <div style={{ fontSize: "9px", fontFamily: "var(--font-mono)", color: "var(--ink-light)", letterSpacing: "0.4em", marginBottom: "12px", opacity: 0.6 }}>FEDERAL BUREAU OF SYNTHETIC DESIRE</div>
+            <div style={{ fontSize: "38px", fontWeight: 900, color: "var(--ink)", lineHeight: 1.1, letterSpacing: "0.04em", marginBottom: "4px", fontFamily: "var(--font-serif)" }}>GOONER OS</div>
+            <div style={{ fontSize: "14px", fontWeight: 500, color: "var(--ink-light)", letterSpacing: "0.2em", marginBottom: "16px", fontFamily: "var(--font-serif)" }}>2037</div>
+            <div style={{ height: "1px", background: "linear-gradient(90deg, transparent, var(--pink), transparent)", marginBottom: "16px" }} />
+            <div className="rainbow-text" style={{ fontSize: "14px", marginBottom: "24px", fontFamily: "var(--font-serif)", fontWeight: 600 }}>~world's first cam girl simulator~</div>
             <div style={{ background: "rgba(255,255,255,0.6)", border: "1px dashed rgba(100,80,140,0.25)", borderRadius: "6px", padding: "16px 20px", marginBottom: "28px", fontSize: "11px", color: "var(--ink-light)", lineHeight: 1.8, fontFamily: "var(--font-mono)" }}>
               suitable for all ages<br />
               <span style={{ opacity: 0.5 }}>besides use of the word </span><span style={{ color: "var(--pink-deep)" }}>whore</span>
             </div>
             <button
-              onClick={() => { playClick(); onPlay(); }}
+              onClick={handlePlay}
               onMouseEnter={() => setBtnHov(true)}
               onMouseLeave={() => setBtnHov(false)}
               style={{ fontFamily: "var(--font-serif)", fontSize: "15px", fontWeight: 700, padding: "12px 52px", background: btnHov ? "linear-gradient(135deg, #c5b3e6, #f8bbd0)" : "linear-gradient(135deg, #b39ddb, #f48fb1)", color: "#fff", border: "none", borderRadius: "6px", cursor: "pointer", outline: "none", letterSpacing: "0.12em", transition: "all 200ms", boxShadow: "0 2px 12px rgba(180,100,180,0.3)" }}>
@@ -1637,6 +1696,14 @@ function HomeScreen({ onPlay }: { onPlay: () => void }) {
             </button>
             <div style={{ fontSize: "8px", color: "var(--ink-light)", marginTop: "20px", letterSpacing: "0.2em", fontFamily: "var(--font-mono)", opacity: 0.4 }}>FORM GOS-2037-Ω · v2.7.0 · AUTHORIZED USE ONLY</div>
           </div>
+        </div>
+        <div style={{ textAlign: "center", marginTop: "28px", fontFamily: "var(--font-mono)", fontSize: "10px", color: "rgba(80,60,120,0.45)", lineHeight: 2.2 }}>
+          made in rage by{" "}
+          <a href="https://github.com/Amina-io" target="_blank" rel="noopener noreferrer" style={{ color: "var(--pink-deep)", textDecoration: "none", fontWeight: 600 }}>amina_io</a>
+          <br />
+          <a href="https://sfpc.study" target="_blank" rel="noopener noreferrer" style={{ color: "rgba(80,60,120,0.35)", textDecoration: "underline", cursor: "pointer", fontSize: "9px" }}>
+            read more about this project ↗
+          </a>
         </div>
       </div>
     </div>
@@ -1657,29 +1724,49 @@ function AdultSwimLine({ text, delay, size = "14px", color = "#fff", weight = 40
 }
 
 function OutcomeScreen({ won, earnings, onPlayAgain }: { won: boolean; earnings: number; onPlayAgain: () => void }) {
-  const [musicStarted, setMusicStarted] = useState(false);
   const [btnVis, setBtnVis] = useState(false);
   const [bgOpacity, setBgOpacity] = useState(0);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    // Fade in background
-    setTimeout(() => setBgOpacity(1), 100);
-    // Start Genesis with slow fade-in
+    setTimeout(() => setBgOpacity(1), 400);
     setTimeout(() => {
       const audio = new Audio("/genesis.mp3");
       audio.loop = true; audio.volume = 0;
       audio.play().catch(() => {});
+      audioRef.current = audio;
       let vol = 0;
       const fade = setInterval(() => {
-        vol = Math.min(vol + 0.005, 0.22);
+        vol = Math.min(vol + 0.004, 0.22);
         audio.volume = vol;
         if (vol >= 0.22) clearInterval(fade);
       }, 120);
-      setMusicStarted(true);
-    }, 600);
-    // Show play again button after all text has appeared
-    setTimeout(() => setBtnVis(true), won ? 7000 : 8000);
+    }, 800);
+    setTimeout(() => setBtnVis(true), won ? 8000 : 11500);
+    // Stop music on unmount
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+        audioRef.current = null;
+      }
+    };
   }, []);
+
+  const handlePlayAgain = () => {
+    // Fade out genesis before resetting
+    if (audioRef.current) {
+      const a = audioRef.current;
+      let vol = a.volume;
+      const fo = setInterval(() => {
+        vol = Math.max(0, vol - 0.02);
+        a.volume = vol;
+        if (vol <= 0) { clearInterval(fo); a.pause(); }
+      }, 60);
+    }
+    playClick();
+    setTimeout(onPlayAgain, 600);
+  };
 
   const winLines = [
     { text: ".", delay: 800, size: "11px", color: "rgba(255,255,255,0.3)" },
@@ -1691,25 +1778,23 @@ function OutcomeScreen({ won, earnings, onPlayAgain }: { won: boolean; earnings:
   ];
 
   const loseLines = [
-    { text: ".", delay: 800, size: "11px", color: "rgba(255,255,255,0.3)" },
-    { text: "It's been 10 minutes.", delay: 1600, size: "20px", color: "#fff", weight: 600 },
-    { text: "Seems like you're not cut out for this.", delay: 3000, size: "13px", color: "rgba(255,255,255,0.8)" },
-    { text: "It's ok.", delay: 4400, size: "16px", color: "#ffc8d5" },
-    { text: "Maybe try your luck", delay: 5400, size: "13px", color: "rgba(255,255,255,0.6)" },
-    { text: "at a meme gulag.", delay: 6000, size: "13px", color: "rgba(255,255,255,0.6)" },
-    { text: "(they're hiring.)", delay: 6800, size: "11px", color: "rgba(255,255,255,0.35)", weight: 300 },
+    { text: ".", delay: 1200, size: "11px", color: "rgba(255,255,255,0.3)" },
+    { text: "SEEMS LIKE YOU'RE NOT CUT OUT FOR THIS…", delay: 2400, size: "22px", color: "#fff", weight: 700 },
+    { text: "It's ok.", delay: 5000, size: "18px", color: "#ffc8d5" },
+    { text: "Maybe try your luck at a meme gulag.", delay: 7000, size: "13px", color: "rgba(255,255,255,0.7)" },
+    { text: "(they're hiring.)", delay: 9000, size: "11px", color: "rgba(255,255,255,0.35)", weight: 300 },
   ];
 
   const lines = won ? winLines : loseLines;
 
   return (
-    <div style={{ minHeight: "100vh", backgroundColor: "#000", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'JetBrains Mono', monospace", opacity: bgOpacity, transition: "opacity 1400ms ease" }}>
+    <div style={{ minHeight: "100vh", backgroundColor: "#000", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'JetBrains Mono', monospace", opacity: bgOpacity, transition: "opacity 2200ms ease" }}>
       <div style={{ textAlign: "center", maxWidth: "480px", padding: "48px 32px" }}>
         {lines.map((l, i) => (
           <AdultSwimLine key={i} text={l.text} delay={l.delay} size={l.size} color={l.color} weight={l.weight} />
         ))}
         <div style={{ marginTop: "48px", opacity: btnVis ? 1 : 0, transition: "opacity 1200ms ease" }}>
-          <button onClick={() => { playClick(); onPlayAgain(); }} style={{ fontFamily: "inherit", fontSize: "12px", padding: "10px 32px", backgroundColor: "transparent", color: "rgba(255,255,255,0.5)", border: "0.5px solid rgba(255,255,255,0.2)", borderRadius: "6px", cursor: "pointer", outline: "none", letterSpacing: "0.15em" }}>
+          <button onClick={handlePlayAgain} style={{ fontFamily: "inherit", fontSize: "12px", padding: "10px 32px", backgroundColor: "transparent", color: "rgba(255,255,255,0.5)", border: "0.5px solid rgba(255,255,255,0.2)", borderRadius: "6px", cursor: "pointer", outline: "none", letterSpacing: "0.15em" }}>
             play again
           </button>
         </div>
@@ -1757,6 +1842,7 @@ export default function App() {
   const [chosenName, setChosenName] = useState<string | null>(null);
   const [finalEarnings, setFinalEarnings] = useState(0);
   const intakeMusicRef = useRef<{ stop: () => void; fadeOut: () => void } | null>(null);
+  useGlobalStyles();
 
   const go = (n: ScreenId) => { setVis(false); setTimeout(() => { setScreen(n); setVis(true); }, 140); };
   const selectedType = CAMERA_TYPES.find(t => t.id === type);
@@ -1775,15 +1861,25 @@ export default function App() {
   if (phase === "lose") return <OutcomeScreen won={false} earnings={finalEarnings} onPlayAgain={resetGame} />;
   if (phase === "dashboard") return <StreamDashboard chosenName={chosenName ?? "Unknown"} track={type ?? "Jester"} onWin={(e) => { setFinalEarnings(e); setPhase("win"); }} onLose={(e) => { setFinalEarnings(e); setPhase("lose"); }} />;
 
-  return (
-    <div style={{ fontFamily: "'JetBrains Mono', monospace", backgroundColor: "#FFF", minHeight: "100vh", display: "flex", justifyContent: "center" }}>
 
-      <div style={{ maxWidth: "480px", width: "100%", paddingTop: "48px", paddingLeft: "24px", paddingRight: "24px", paddingBottom: "64px", opacity: vis ? 1 : 0, transition: "opacity 140ms ease" }}>
-        {screen === 1 && <Screen1 mode={mode} setMode={m => setMode(m)} onContinue={() => { setType(null); go(2); }} />}
-        {screen === 2 && <Screen2 types={CAMERA_TYPES} type={type} setType={setType} onContinue={() => go(3)} />}
-        {screen === 3 && <Screen3 typeName={selectedType?.label ?? ""} nameInput={nameInput} setNameInput={setNameInput} onEnter={() => go(4)} />}
-        {screen === 4 && <Screen4 typeName={selectedType?.label ?? ""} inputName={nameInput} nameOptions={nameOptions} chosenName={chosenName} setChosenName={setChosenName} onConfirm={() => go(5)} />}
-        {screen === 5 && <Screen5 chosenName={chosenName ?? nameOptions[0]} onBegin={() => setPhase("training")} />}
+  return (
+    <div style={{ fontFamily: "var(--font-serif, 'Zen Old Mincho', Georgia, serif)", minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", position: "relative", zIndex: 1, padding: "24px" }}>
+      <div style={{ maxWidth: "520px", width: "100%", opacity: vis ? 1 : 0, transition: "opacity 140ms ease" }}>
+        <div className="os-window">
+          <div className="os-window-title">
+            <div className="os-dot" style={{ backgroundColor: "#ff6b6b" }} />
+            <div className="os-dot" style={{ backgroundColor: "#ffd93d" }} />
+            <div className="os-dot" style={{ backgroundColor: "#6bcb77" }} />
+            <span className="os-label">GOONER OS 2037 · INTAKE — {screen}/5</span>
+          </div>
+          <div style={{ padding: "32px 36px 36px" }}>
+            {screen === 1 && <Screen1 mode={mode} setMode={m => setMode(m)} onContinue={() => { setType(null); go(2); }} />}
+            {screen === 2 && <Screen2 types={CAMERA_TYPES} type={type} setType={setType} onContinue={() => go(3)} />}
+            {screen === 3 && <Screen3 typeName={selectedType?.label ?? ""} nameInput={nameInput} setNameInput={setNameInput} onEnter={() => go(4)} />}
+            {screen === 4 && <Screen4 typeName={selectedType?.label ?? ""} inputName={nameInput} nameOptions={nameOptions} chosenName={chosenName} setChosenName={setChosenName} onConfirm={() => go(5)} />}
+            {screen === 5 && <Screen5 chosenName={chosenName ?? nameOptions[0]} onBegin={() => { intakeMusicRef.current?.fadeOut(); setTimeout(() => setPhase("training"), 600); }} />}
+          </div>
+        </div>
       </div>
       <style>{`@keyframes blink{0%,100%{opacity:1}50%{opacity:0}}`}</style>
     </div>
