@@ -1,11 +1,10 @@
-# GOONER OS 2037
+# GOONER OS 2037 [in beta~]
 
 **world's first cam girl simulator**
 
 A satirical browser-based game about digital labor, desire, and the attention economy. Built for the School for Poetic Computation.
 
-🎮 **Play:** [gogame-flax.vercel.app](https://gogame-flax.vercel.app)
-🌐 **Landing:** [gooner-os.com](https://gooner-os.com)
+🌐 **Landing:** [gooner-os.com](gooner-os-landing.vercel.app)
 
 ---
 
