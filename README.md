@@ -4,7 +4,7 @@
 
 A satirical browser-based game about digital labor, desire, and the attention economy. Built for the School for Poetic Computation.
 
-🌐 **Landing:** [gooner-os.com](gooner-os-landing.vercel.app)
+🌐 **Landing:** gooner-os-landing.vercel.app
 
 ---
 
