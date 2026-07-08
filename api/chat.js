@@ -6,7 +6,7 @@
 //   ANTHROPIC_API_KEY = sk-ant-...   (all environments)
 // Local dev: `vercel dev` (or `vercel env pull` then `vercel dev`).
 
-const MODEL = "claude-sonnet-4-20250514";
+const MODEL = "claude-sonnet-4-6";
 const MAX_TOKENS_CAP = 200;
 const MAX_MESSAGES = 60;
 const MAX_CONTENT_LENGTH = 2000;
