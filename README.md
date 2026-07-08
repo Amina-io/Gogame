@@ -64,20 +64,32 @@ The player is assigned a job: **teach AI agents desire.** Based on whatever arch
 
 ## dev setup
 
+The Anthropic API key lives **server-side only** — it is proxied through a Vercel
+serverless function (`/api/chat`) so it never ships in the client bundle. The agent
+system prompts live there too.
+
 ```bash
 git clone https://github.com/Amina-io/Gogame
 cd Gogame
 npm install
-echo "VITE_ANTHROPIC_API_KEY=your_key_here" > .env
-npm run dev
+
+# local dev (runs Vite + the /api functions together):
+npm i -g vercel
+echo "ANTHROPIC_API_KEY=your_key_here" > .env.local
+vercel dev
 ```
+
+For production: Vercel → Project → Settings → Environment Variables →
+`ANTHROPIC_API_KEY`. If you ever had a `VITE_ANTHROPIC_API_KEY` deployed,
+**rotate that key** — anything VITE_-prefixed was embedded in the public bundle.
 
 ---
 
-## cheat keys (for testing)
+## cheat keys (dev builds only)
 
 `Shift+W` triggers win screen  
-`Shift+L` triggers lose screen
+`Shift+L` triggers lose screen  
+(disabled in production builds, and never fire while typing in an input)
 
 ---
 
